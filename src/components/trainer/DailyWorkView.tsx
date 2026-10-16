@@ -3930,51 +3930,74 @@ export const DailyWorkView: React.FC = () => {
               </div>
 
               {/* Tasks Completed Today (Mandatory - Positioned after Additional Responsibilities) */}
-              <div className="rounded-2xl border border-sky-200/80 bg-linear-to-b from-sky-50/50 to-white p-3.5 space-y-2 shadow-2xs">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <Briefcase className="h-4 w-4 text-sky-600" />
-                    <label htmlFor="tasks-worked-on-textarea" className="text-xs font-bold text-slate-900">
-                      Tasks Completed Today <span className="text-rose-600">* (Mandatory)</span>
-                    </label>
+              <div className="rounded-2xl border-2 border-sky-300 bg-white p-4 space-y-2.5 shadow-xs transition-all">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-sky-100">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-sky-100 text-sky-700">
+                      <Briefcase className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <label htmlFor="tasks-worked-on-textarea" className="text-xs font-bold text-slate-900 block">
+                        Tasks Completed Today <span className="text-rose-600 font-extrabold">* (Mandatory)</span>
+                      </label>
+                      <span className="text-[11px] text-slate-500 font-normal">
+                        What you have done, topics taught, and key learnings during today's shift
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-medium text-slate-500 hidden sm:inline">
-                      Topics taught, lab work & what was learned
+                  {/* Prominent Maximize Box Button */}
+                  <button
+                    type="button"
+                    onClick={() => setIsTasksEditorExpanded(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-linear-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 rounded-xl shadow-xs hover:shadow-md transition-all cursor-pointer ring-2 ring-sky-200"
+                    title="Open big maximized popup window to write and edit your tasks and learnings with ease"
+                  >
+                    <Maximize2 className="h-3.5 w-3.5 stroke-[2.5]" />
+                    <span>Maximize Box</span>
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <textarea
+                    required={!formData.isLeave}
+                    id="tasks-worked-on-textarea"
+                    rows={4}
+                    placeholder="Enter what you have done today: summary of topics taught, student lab coordination, issues resolved, and what you learned during today's sessions... (Click 'Maximize Box' above to edit in a large full screen window)"
+                    value={!formData.isLeave && isLeaveText(formData.tasksWorkedOn) ? '' : formData.tasksWorkedOn}
+                    onChange={(e) => setFormData({ ...formData, tasksWorkedOn: e.target.value })}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3 pr-10 text-xs text-slate-900 focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-100 focus:outline-hidden leading-relaxed placeholder:text-slate-400"
+                  />
+                  {/* Floating quick maximize button in corner of textarea */}
+                  <button
+                    type="button"
+                    onClick={() => setIsTasksEditorExpanded(true)}
+                    className="absolute top-2.5 right-2.5 p-1.5 rounded-lg bg-white/90 border border-slate-200 text-slate-500 hover:text-sky-700 hover:bg-sky-50 hover:border-sky-300 transition-all cursor-pointer shadow-2xs"
+                    title="Maximize to big popup"
+                    aria-label="Maximize to big popup"
+                  >
+                    <Maximize2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between text-[11px] gap-2 pt-0.5">
+                  <div className="flex items-center gap-2 text-slate-500">
+                    <span>
+                      Character count: <strong className="text-slate-800">{(!formData.isLeave && isLeaveText(formData.tasksWorkedOn) ? '' : formData.tasksWorkedOn).length}</strong>
                     </span>
+                    <span>•</span>
                     <button
                       type="button"
                       onClick={() => setIsTasksEditorExpanded(true)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-sky-700 bg-sky-100 hover:bg-sky-200 rounded-lg border border-sky-300 transition-colors cursor-pointer"
-                      title="Open in full maximized popup editor for easy review and typing"
+                      className="text-sky-600 hover:text-sky-800 font-semibold underline underline-offset-2 cursor-pointer inline-flex items-center gap-1"
                     >
-                      <Maximize2 className="h-3 w-3" />
-                      <span>Maximize Editor</span>
+                      <span>Need more space? Open full pop-up</span>
+                      <Maximize2 className="h-2.5 w-2.5" />
                     </button>
                   </div>
-                </div>
 
-                <p className="text-[11px] text-slate-500 leading-normal">
-                  Detail what you have accomplished today, concepts covered in classes/labs, and key learnings or insights acquired during execution.
-                </p>
-
-                <textarea
-                  required={!formData.isLeave}
-                  id="tasks-worked-on-textarea"
-                  rows={4}
-                  placeholder="Describe what you completed today: topics taught, student lab coordination, issues resolved, and what you learned during today's sessions..."
-                  value={!formData.isLeave && isLeaveText(formData.tasksWorkedOn) ? '' : formData.tasksWorkedOn}
-                  onChange={(e) => setFormData({ ...formData, tasksWorkedOn: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-900 focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-100 focus:outline-hidden leading-relaxed placeholder:text-slate-400"
-                />
-
-                <div className="flex items-center justify-between text-[11px] text-slate-400 pt-0.5">
-                  <span className="text-slate-500">
-                    Character count: {(!formData.isLeave && isLeaveText(formData.tasksWorkedOn) ? '' : formData.tasksWorkedOn).length}
-                  </span>
-                  <span className="text-rose-600/90 font-medium">
-                    * Required for work log submission
+                  <span className="text-rose-600 font-semibold">
+                    * Required before submitting work log
                   </span>
                 </div>
               </div>
@@ -4277,14 +4300,25 @@ export const DailyWorkView: React.FC = () => {
                 Clear Text
               </button>
 
-              <button
-                type="button"
-                onClick={() => setIsTasksEditorExpanded(false)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-sky-600 px-5 py-2 text-xs font-semibold text-white hover:bg-sky-500 transition-colors cursor-pointer shadow-xs"
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                <span>Save to Work Log & Return</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsTasksEditorExpanded(false)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  <Minimize2 className="h-4 w-4 text-slate-500" />
+                  <span>Minimize Window</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsTasksEditorExpanded(false)}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-linear-to-r from-sky-600 to-indigo-600 px-5 py-2 text-xs font-bold text-white hover:from-sky-500 hover:to-indigo-500 transition-all cursor-pointer shadow-xs"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>Done & Minimize</span>
+                </button>
+              </div>
             </div>
           </div>
         </Modal>
