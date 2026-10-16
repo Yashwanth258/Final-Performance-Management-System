@@ -6,7 +6,8 @@ import {
   TaskItem, 
   ProjectItem, 
   PerformanceWeights,
-  Team
+  Team,
+  FeedbackRecord
 } from '../types';
 
 // Helper to convert snake_case object to camelCase and vice versa
@@ -347,6 +348,79 @@ export const updateTask = async (id: string, updates: Partial<TaskItem>): Promis
   }
 };
 
+export const createTask = async (task: Omit<TaskItem, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
+  const payload = {
+    task_name: task.taskName,
+    description: task.description || '',
+    assigned_by: task.assignedBy,
+    assigned_by_name: task.assignedByName,
+    assigned_to: task.assignedTo,
+    assigned_to_name: task.assignedToName,
+    assigned_to_employee_id: task.assignedToEmployeeId,
+    team_id: task.teamId,
+    manager_id: task.managerId,
+    priority: task.priority || 'Medium',
+    assigned_date: task.assignedDate || new Date().toISOString().split('T')[0],
+    due_date: task.dueDate,
+    status: task.status || 'In Progress',
+    completion_percentage: task.completionPercentage || 0,
+    remarks: task.remarks,
+    category: task.category,
+  };
+
+  const { data, error } = await supabase
+    .from('tasks')
+    .insert(payload)
+    .select('id')
+    .single();
+
+  if (error) {
+    console.error('[Supabase] createTask error:', error);
+    throw error;
+  }
+  return data.id;
+};
+
+export const deleteTask = async (id: string): Promise<void> => {
+  const { error } = await supabase.from('tasks').delete().eq('id', id);
+  if (error) {
+    console.error('[Supabase] deleteTask error:', error);
+    throw error;
+  }
+};
+
+// 4B. CLASS UPDATES & DELETES
+export const updateClass = async (id: string, updates: Partial<ClassItem>): Promise<void> => {
+  const payload: any = { updated_at: new Date().toISOString() };
+  if (updates.className !== undefined) payload.class_name = updates.className;
+  if (updates.batch !== undefined) payload.batch = updates.batch;
+  if (updates.subject !== undefined) payload.subject = updates.subject;
+  if (updates.topic !== undefined) payload.topic = updates.topic;
+  if (updates.date !== undefined) payload.date = updates.date;
+  if (updates.startTime !== undefined) payload.start_time = updates.startTime;
+  if (updates.endTime !== undefined) payload.end_time = updates.endTime;
+  if (updates.durationMinutes !== undefined) payload.duration_minutes = updates.durationMinutes;
+  if (updates.numberOfStudents !== undefined) payload.number_of_students = updates.numberOfStudents;
+  if (updates.deliveryMode !== undefined) payload.delivery_mode = updates.deliveryMode;
+  if (updates.status !== undefined) payload.status = updates.status;
+  if (updates.remarks !== undefined) payload.remarks = updates.remarks;
+  if (updates.roomOrMeetingLink !== undefined) payload.room_or_meeting_link = updates.roomOrMeetingLink;
+
+  const { error } = await supabase.from('classes').update(payload).eq('id', id);
+  if (error) {
+    console.error('[Supabase] updateClass error:', error);
+    throw error;
+  }
+};
+
+export const deleteClass = async (id: string): Promise<void> => {
+  const { error } = await supabase.from('classes').delete().eq('id', id);
+  if (error) {
+    console.error('[Supabase] deleteClass error:', error);
+    throw error;
+  }
+};
+
 // 5. PROJECTS
 export const fetchProjects = async (): Promise<ProjectItem[]> => {
   const { data, error } = await supabase
@@ -382,6 +456,165 @@ export const fetchProjects = async (): Promise<ProjectItem[]> => {
     createdAt: p.created_at,
     updatedAt: p.updated_at,
   }));
+};
+
+export const createProject = async (project: Omit<ProjectItem, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
+  const payload = {
+    project_name: project.projectName,
+    project_description: project.projectDescription || '',
+    start_date: project.startDate,
+    expected_completion_date: project.expectedCompletionDate,
+    current_stage: project.currentStage || 'Planning',
+    overall_completion_percentage: project.overallCompletionPercentage || 0,
+    current_status: project.currentStatus || 'On Track',
+    manager_id: project.managerId,
+    manager_name: project.managerName,
+    assigned_to: project.assignedTo,
+    assigned_to_name: project.assignedToName,
+    assigned_to_employee_id: project.assignedToEmployeeId,
+    team_id: project.teamId,
+    remarks: project.remarks,
+    repository_url: project.repositoryUrl,
+    deliverables: project.deliverables,
+    is_self_assigned: project.isSelfAssigned || false,
+    is_open_for_self_assignment: project.isOpenForSelfAssignment || false,
+    milestones: project.milestones || [],
+  };
+
+  const { data, error } = await supabase
+    .from('projects')
+    .insert(payload)
+    .select('id')
+    .single();
+
+  if (error) {
+    console.error('[Supabase] createProject error:', error);
+    throw error;
+  }
+  return data.id;
+};
+
+export const updateProject = async (id: string, updates: Partial<ProjectItem>): Promise<void> => {
+  const payload: any = { updated_at: new Date().toISOString() };
+  if (updates.projectName !== undefined) payload.project_name = updates.projectName;
+  if (updates.projectDescription !== undefined) payload.project_description = updates.projectDescription;
+  if (updates.currentStage !== undefined) payload.current_stage = updates.currentStage;
+  if (updates.overallCompletionPercentage !== undefined) payload.overall_completion_percentage = updates.overallCompletionPercentage;
+  if (updates.currentStatus !== undefined) payload.current_status = updates.currentStatus;
+  if (updates.milestones !== undefined) payload.milestones = updates.milestones;
+  if (updates.remarks !== undefined) payload.remarks = updates.remarks;
+
+  const { error } = await supabase.from('projects').update(payload).eq('id', id);
+  if (error) {
+    console.error('[Supabase] updateProject error:', error);
+    throw error;
+  }
+};
+
+export const deleteProject = async (id: string): Promise<void> => {
+  const { error } = await supabase.from('projects').delete().eq('id', id);
+  if (error) {
+    console.error('[Supabase] deleteProject error:', error);
+    throw error;
+  }
+};
+
+// 5B. TEAMS
+export const fetchTeams = async (): Promise<Team[]> => {
+  const { data, error } = await supabase.from('teams').select('*').order('created_at', { ascending: true });
+  if (error) {
+    console.warn('[Supabase] fetchTeams warning:', error.message);
+    return [];
+  }
+  return (data || []).map(t => ({
+    id: t.id,
+    name: t.name,
+    managerId: t.manager_id || '',
+    managerName: t.manager_name || '',
+    department: t.department || 'GenAI',
+    location: t.location || '',
+    description: t.description || '',
+    createdAt: t.created_at,
+  }));
+};
+
+export const upsertTeam = async (team: Team): Promise<void> => {
+  const payload = {
+    id: team.id,
+    name: team.name,
+    manager_id: team.managerId || null,
+    manager_name: team.managerName || null,
+    department: team.department || 'GenAI',
+    location: team.location || '',
+    description: team.description || '',
+    created_at: team.createdAt || new Date().toISOString(),
+  };
+  const { error } = await supabase.from('teams').upsert(payload, { onConflict: 'id' });
+  if (error) {
+    console.warn('[Supabase] upsertTeam notice:', error.message);
+  }
+};
+
+// 5C. DELETE PROFILE & USER
+export const deleteProfile = async (identifier: string): Promise<void> => {
+  try {
+    await Promise.all([
+      supabase.from('profiles').delete().or(`uid.eq.${identifier},employee_id.eq.${identifier},id.eq.${identifier}`),
+      supabase.from('manager_credentials').delete().or(`uid.eq.${identifier},employee_id.eq.${identifier},id.eq.${identifier}`),
+      supabase.from('trainer_credentials').delete().or(`uid.eq.${identifier},employee_id.eq.${identifier},id.eq.${identifier}`),
+      supabase.from('user_credentials').delete().or(`uid.eq.${identifier},employee_id.eq.${identifier},id.eq.${identifier}`),
+    ]);
+  } catch (err) {
+    console.error('[Supabase] deleteProfile error:', err);
+  }
+};
+
+// 5D. FEEDBACKS
+export const fetchFeedbacks = async (): Promise<FeedbackRecord[]> => {
+  const { data, error } = await supabase.from('feedbacks').select('*').order('created_at', { ascending: false });
+  if (error) {
+    console.warn('[Supabase] fetchFeedbacks warning:', error.message);
+    return [];
+  }
+  return (data || []).map(f => ({
+    id: f.id,
+    userId: f.trainer_id || '',
+    employeeId: f.trainer_employee_id || '',
+    type: 'QA' as const,
+    score: Number(f.qa_score || f.student_rating || 0),
+    maxScore: 5,
+    category: 'Delivery Excellence',
+    comments: f.comments || '',
+    evaluatorName: f.trainer_name || 'QA Committee',
+    date: f.date || new Date().toISOString().split('T')[0],
+    createdAt: f.created_at,
+  }));
+};
+
+export const createFeedback = async (fb: Omit<FeedbackRecord, 'id' | 'createdAt'>): Promise<string> => {
+  const payload = {
+    trainer_id: fb.userId,
+    trainer_name: fb.evaluatorName || '',
+    trainer_employee_id: fb.employeeId,
+    student_rating: fb.score,
+    qa_score: fb.score,
+    comments: fb.comments || '',
+    date: fb.date || new Date().toISOString().split('T')[0],
+  };
+  const { data, error } = await supabase.from('feedbacks').insert(payload).select('id').single();
+  if (error) {
+    console.error('[Supabase] createFeedback error:', error);
+    throw error;
+  }
+  return data.id;
+};
+
+export const deleteFeedback = async (id: string): Promise<void> => {
+  const { error } = await supabase.from('feedbacks').delete().eq('id', id);
+  if (error) {
+    console.error('[Supabase] deleteFeedback error:', error);
+    throw error;
+  }
 };
 
 // 6. PERFORMANCE WEIGHTS

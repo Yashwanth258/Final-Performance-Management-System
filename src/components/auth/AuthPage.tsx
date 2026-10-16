@@ -34,8 +34,7 @@ import {
   UserPlus,
   Building
 } from 'lucide-react';
-import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { fetchAllProfiles } from '../../lib/supabaseDb';
 import { useAuth } from '../../context/AuthContext';
 import { UserRole, UserProfile, EnterpriseDepartment, ENTERPRISE_DEPARTMENTS } from '../../types';
 import { NxtWaveLogo } from '../common/NxtWaveLogo';
@@ -260,14 +259,10 @@ export const AuthPage: React.FC = () => {
     // Initial sync
     syncAllManagers();
 
-    // 1. Real-time Firestore users subscription for managers only (strictly role == 'MANAGER')
-    const usersCol = collection(db, 'users');
-    const mgrQuery = query(usersCol, where('role', '==', 'MANAGER'));
-    const unsubUsers = onSnapshot(mgrQuery, (snapshot) => {
+    // Live sync from Supabase profiles
+    fetchAllProfiles().then((profiles) => {
       const docs: ManagerDirectoryItem[] = [];
-      snapshot.forEach(docSnap => {
-        const data = docSnap.data() as UserProfile;
-        // Strictly filter out any trainer accounts and legacy dummy accounts
+      profiles.forEach(data => {
         if (
           data && 
           data.role === 'MANAGER' && 
@@ -276,7 +271,7 @@ export const AuthPage: React.FC = () => {
           !isDummyManagerAccount(data.companyEmail, data.fullName, data.employeeId)
         ) {
           docs.push({
-            uid: data.uid || docSnap.id,
+            uid: data.uid,
             fullName: data.fullName,
             companyEmail: data.companyEmail.toLowerCase(),
             employeeId: data.employeeId,
@@ -289,41 +284,11 @@ export const AuthPage: React.FC = () => {
       });
       userManagerDocs = docs;
       syncAllManagers();
-    }, (err) => {
-      console.warn('Real-time manager users sync notice:', err);
+    }).catch(err => {
+      console.info('[Supabase] Manager profiles sync notice:', err);
     });
 
-    // 2. Real-time subscription to manager_credentials collection for instant cross-reflection
-    const credCol = collection(db, 'manager_credentials');
-    const unsubCreds = onSnapshot(credCol, (snap) => {
-      const docs: ManagerDirectoryItem[] = [];
-      snap.forEach(d => {
-        const data = d.data();
-        const p = data.profile || data;
-        const isManagerRole = (data.role === 'MANAGER' || p.role === 'MANAGER') && data.role !== 'TRAINER' && p.role !== 'TRAINER';
-        const email = (p.companyEmail || data.email || '').toLowerCase().trim();
-        const fullName = p.fullName || data.fullName || '';
-        const empId = p.employeeId || data.employeeId || '';
-        if (p && isManagerRole && email && !isDummyManagerAccount(email, fullName, empId)) {
-          docs.push({
-            uid: data.uid || p.uid || d.id,
-            fullName: fullName || 'Manager',
-            companyEmail: email,
-            employeeId: empId,
-            department: p.department || data.department,
-            designation: p.designation || data.designation,
-            location: p.location || data.location,
-            teamName: p.teamName || data.teamName,
-          });
-        }
-      });
-      credManagerDocs = docs;
-      syncAllManagers();
-    }, (e) => {
-      console.warn('Error listening to manager_credentials:', e);
-    });
-
-    // 3. Storage event listener across tabs/windows
+    // Storage event listener across tabs/windows
     const handleStorageChange = () => {
       syncAllManagers();
     };
@@ -331,8 +296,6 @@ export const AuthPage: React.FC = () => {
     window.addEventListener('nxtwave_manager_registered', handleStorageChange);
 
     return () => {
-      unsubUsers();
-      unsubCreds();
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('nxtwave_manager_registered', handleStorageChange);
     };

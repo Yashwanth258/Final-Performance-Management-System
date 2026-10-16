@@ -1,5 +1,3 @@
-import { auth } from './firebase';
-
 export enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',
@@ -46,19 +44,16 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: auth.currentUser?.uid || null,
-      email: auth.currentUser?.email || null,
-      emailVerified: auth.currentUser?.emailVerified || null,
-      isAnonymous: auth.currentUser?.isAnonymous || null,
-      tenantId: auth.currentUser?.tenantId || null,
-      providerInfo: auth.currentUser?.providerData?.map(provider => ({
-        providerId: provider.providerId,
-        email: provider.email,
-      })) || [],
+      userId: null,
+      email: null,
+      emailVerified: null,
+      isAnonymous: null,
+      tenantId: null,
+      providerInfo: [],
     },
     operationType,
     path,
   };
-  console.warn('Firestore Operation Notice:', JSON.stringify(errInfo));
+  console.warn('Database Operation Notice:', JSON.stringify(errInfo));
   return errInfo;
 }

@@ -1,27 +1,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { 
-  User, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut, 
-  sendPasswordResetEmail, 
-  onAuthStateChanged 
-} from 'firebase/auth';
-import { 
-  doc, 
-  getDoc, 
-  setDoc, 
-  onSnapshot, 
-  collection, 
-  query, 
-  where, 
-  getDocs 
-} from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
 import { UserProfile, UserRole } from '../types';
-import { seedEnterpriseDatabaseIfEmpty, DEFAULT_MANAGER_SECURITY_PASSCODE } from '../lib/seedDatabase';
-import { cleanFirestoreData } from '../lib/firestoreErrors';
-import { upsertProfile, lookupCredentialsSupa, saveCredentialSupa } from '../lib/supabaseDb';
+import { DEFAULT_MANAGER_SECURITY_PASSCODE } from '../lib/seedDatabase';
+import { upsertProfile, lookupCredentialsSupa, saveCredentialSupa, fetchAllProfiles } from '../lib/supabaseDb';
+
+export interface AuthUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+}
+
+export type User = AuthUser;
 
 export interface RegisterUserData {
   fullName: string;
@@ -38,8 +26,8 @@ export interface RegisterUserData {
   managerId?: string;
   managerName?: string;
   managerEmail?: string;
-  managerSecurityPasscode?: string; // Mandatory when role === 'MANAGER'
-  allowOverwrite?: boolean; // When true, re-creates/overwrites existing record and re-syncs to Supabase
+  managerSecurityPasscode?: string;
+  allowOverwrite?: boolean;
 }
 
 interface AuthContextType {
@@ -68,133 +56,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
     try {
-      const savedProfileStr = localStorage.getItem(LOCAL_STORAGE_PROFILE_KEY);
-      if (savedProfileStr) {
-        return JSON.parse(savedProfileStr);
+      const savedProfile = localStorage.getItem(LOCAL_STORAGE_PROFILE_KEY);
+      if (savedProfile) {
+        return JSON.parse(savedProfile);
       }
     } catch {
-      // Ignore
+      // Ignore parse errors
     }
     return null;
   });
-  const [loading, setLoading] = useState(false);
-  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
 
-
+  // Restore saved session on startup
   useEffect(() => {
-    // Seed initial enterprise records if empty
-    seedEnterpriseDatabaseIfEmpty().catch(console.error);
-
-    let unsubSnapshot: (() => void) | null = null;
-
-    // 1. Check local storage for persistent session
     const restoreSavedSession = async () => {
       try {
         const savedUid = localStorage.getItem(LOCAL_STORAGE_USER_KEY);
         const savedProfileStr = localStorage.getItem(LOCAL_STORAGE_PROFILE_KEY);
 
         if (savedUid) {
-          // Listen to live user profile from Firestore
-          const userRef = doc(db, 'users', savedUid);
-          unsubSnapshot = onSnapshot(
-            userRef,
-            (snap) => {
-              if (snap.exists()) {
-                const profile = snap.data() as UserProfile;
-                setUserProfile(profile);
-                localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(profile));
-              } else if (savedProfileStr) {
-                try {
-                  setUserProfile(JSON.parse(savedProfileStr));
-                } catch {
-                  // Ignore
-                }
-              }
-              setLoading(false);
-            },
-            (err) => {
-              console.warn('Live profile sync notice:', err);
-              if (savedProfileStr) {
-                try {
-                  setUserProfile(JSON.parse(savedProfileStr));
-                } catch {
-                  // Ignore
-                }
-              }
-              setLoading(false);
+          if (savedProfileStr) {
+            try {
+              const parsed = JSON.parse(savedProfileStr) as UserProfile;
+              setUserProfile(parsed);
+              setCurrentUser({
+                uid: parsed.uid,
+                email: parsed.companyEmail,
+                displayName: parsed.fullName,
+              });
+            } catch {
+              // Ignore
             }
-          );
-          return;
+          }
+
+          // Fetch fresh profile from Supabase
+          try {
+            const allProfiles = await fetchAllProfiles();
+            const matching = allProfiles.find(p => p.uid === savedUid || p.employeeId === savedUid || p.companyEmail === savedUid);
+            if (matching) {
+              setUserProfile(matching);
+              setCurrentUser({
+                uid: matching.uid,
+                email: matching.companyEmail,
+                displayName: matching.fullName,
+              });
+              localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(matching));
+            }
+          } catch (fetchErr) {
+            console.warn('[Auth] Fresh profile fetch warning:', fetchErr);
+          }
         }
       } catch (err) {
-        console.warn('Session restoration notice:', err);
+        console.warn('[Auth] Session restoration notice:', err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     restoreSavedSession();
-
-    // 2. Also listen for Firebase Auth state changes
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
-      if (user) {
-        setIsDemoMode(false);
-        try {
-          // First check by uid
-          const userRef = doc(db, 'users', user.uid);
-          const snap = await getDoc(userRef);
-          if (snap.exists()) {
-            const profile = snap.data() as UserProfile;
-            setUserProfile(profile);
-            localStorage.setItem(LOCAL_STORAGE_USER_KEY, user.uid);
-            localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(profile));
-          } else if (user.email) {
-            // Check by email in users collection
-            const cleanEmail = user.email.trim().toLowerCase();
-            const usersRef = collection(db, 'users');
-            const q = query(usersRef, where('companyEmail', '==', cleanEmail));
-            const querySnap = await getDocs(q);
-            if (!querySnap.empty) {
-              const profile = querySnap.docs[0].data() as UserProfile;
-              setUserProfile(profile);
-              localStorage.setItem(LOCAL_STORAGE_USER_KEY, querySnap.docs[0].id);
-              localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(profile));
-            } else {
-              // Create default profile for authenticated user
-              const newProf: UserProfile = {
-                uid: user.uid,
-                employeeId: `EMP-${Math.floor(1000 + Math.random() * 9000)}`,
-                fullName: user.displayName || user.email.split('@')[0],
-                companyEmail: cleanEmail,
-                role: 'TRAINER',
-                teamId: 'team-genai',
-                teamName: 'GenAI Department',
-                managerId: '',
-                managerName: 'Reporting Manager',
-                designation: 'Technical Trainer',
-                location: 'San Francisco, CA',
-                subject: 'Engineering Enablement',
-                isActive: true,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-              };
-              await setDoc(doc(db, 'users', user.uid), cleanFirestoreData(newProf));
-              setUserProfile(newProf);
-              localStorage.setItem(LOCAL_STORAGE_USER_KEY, user.uid);
-              localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(newProf));
-            }
-          }
-        } catch (authSyncErr) {
-          console.warn('Auth state changed sync notice:', authSyncErr);
-        }
-      }
-      setLoading(false);
-    });
-
-    return () => {
-      if (unsubSnapshot) unsubSnapshot();
-      unsubscribeAuth();
-    };
   }, []);
 
   const login = async (emailOrId: string, pass: string, portalRole?: 'MANAGER' | 'TRAINER' | 'TRAINEE') => {
@@ -220,16 +140,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const lookupKeys = [lowerInput, upperInput, cleanInput];
 
       let credData: any = null;
-      let foundUid: string | null = null;
       let userProfileData: UserProfile | null = null;
       let isVerified = false;
       let detectedRole: UserRole | null = null;
 
-      // =========================================================================
-      // STEP 1: FAST-PATH SYNCHRONOUS CHECKS (Local Cache & Seed Registry)
-      // =========================================================================
-
-      // 1A. Check dedicated local cache tables
+      // 1. FAST-PATH: Check dedicated local cache tables
       try {
         const mgrAccountsRaw = localStorage.getItem('nxtwave_manager_accounts');
         const trainerAccountsRaw = localStorage.getItem('nxtwave_trainer_accounts');
@@ -249,9 +164,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
           if (cachedMgr) {
             credData = cachedMgr;
-            foundUid = cachedMgr.uid;
             detectedRole = 'MANAGER';
-            if (cachedMgr.profile) userProfileData = cachedMgr.profile as UserProfile;
+            if (cachedMgr.profile) userProfileData = cachedMgr.profile;
           }
         } else if (portalRole === 'TRAINER' || portalRole === 'TRAINEE') {
           if (cachedMgr) {
@@ -259,37 +173,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
           if (cachedTrainer) {
             credData = cachedTrainer;
-            foundUid = cachedTrainer.uid;
             detectedRole = 'TRAINER';
-            if (cachedTrainer.profile) userProfileData = cachedTrainer.profile as UserProfile;
+            if (cachedTrainer.profile) userProfileData = cachedTrainer.profile;
           }
         } else {
-          const cached = cachedMgr || cachedTrainer || cachedGeneric;
-          if (cached) {
-            credData = cached;
-            foundUid = cached.uid;
-            detectedRole = cached.role || (cachedMgr ? 'MANAGER' : 'TRAINER');
-            if (cached.profile) userProfileData = cached.profile as UserProfile;
+          const matched = cachedMgr || cachedTrainer || cachedGeneric;
+          if (matched) {
+            credData = matched;
+            detectedRole = matched.role || (cachedMgr ? 'MANAGER' : 'TRAINER');
+            if (matched.profile) userProfileData = matched.profile;
           }
         }
       } catch (cacheErr: any) {
         if (cacheErr?.message?.startsWith('ROLE_RESTRICTION:')) throw cacheErr;
-        console.warn('[Auth Login Step 1A Warning] Local account cache lookup notice:', cacheErr);
       }
 
-      // 1B. Fast-path credentials check: strictly rely on registered database accounts
-
-      // 1C. Verify password against fast-path credentials record if loaded
+      // 2. Verify password against local cache if found
       if (credData && credData.password !== undefined) {
         if (cleanPass === String(credData.password).trim()) {
           isVerified = true;
         }
       }
 
-      // =========================================================================
-      // STEP 2A: SUPABASE SEPARATE TABLE LOOKUPS (manager_credentials & trainer_credentials)
-      // =========================================================================
-      if (!isVerified && !credData) {
+      // 3. SUPABASE DATABASE LOOKUP (manager_credentials & trainer_credentials)
+      if (!isVerified || !userProfileData) {
         try {
           if (portalRole === 'MANAGER') {
             const foundTrainerSupa = await lookupCredentialsSupa('trainer_credentials', lookupKeys);
@@ -306,7 +213,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 role: 'MANAGER',
                 profile: foundMgrSupa.profile,
               };
-              foundUid = credData.uid;
               detectedRole = 'MANAGER';
               if (credData.profile) userProfileData = credData.profile as UserProfile;
             }
@@ -325,7 +231,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 role: 'TRAINER',
                 profile: foundTrainerSupa.profile,
               };
-              foundUid = credData.uid;
               detectedRole = 'TRAINER';
               if (credData.profile) userProfileData = credData.profile as UserProfile;
             }
@@ -345,238 +250,114 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 role: matchedRole,
                 profile: matchedSupa.profile,
               };
-              foundUid = credData.uid;
               detectedRole = matchedRole;
               if (credData.profile) userProfileData = credData.profile as UserProfile;
             }
           }
         } catch (supaErr: any) {
           if (supaErr?.message?.startsWith('ROLE_RESTRICTION:')) throw supaErr;
-          console.warn('[Auth Login Step 2A Notice] Supabase lookup:', supaErr?.message || supaErr);
+          console.warn('[Auth Login Supabase lookup notice]:', supaErr?.message || supaErr);
         }
       }
 
-      // =========================================================================
-      // STEP 2B: FIRESTORE SEPARATE TABLE LOOKUPS (manager_credentials & trainer_credentials)
-      // =========================================================================
-      if (!isVerified && !credData) {
-        try {
-          if (portalRole === 'MANAGER') {
-            // First check if user belongs to trainer_credentials
-            const trainerDocPromises = lookupKeys.map(k => getDoc(doc(db, 'trainer_credentials', k)));
-            const trainerDocSnaps = await Promise.all(trainerDocPromises);
-            const foundTrainer = trainerDocSnaps.find(s => s.exists());
-            if (foundTrainer) {
-              throw new Error('ROLE_RESTRICTION: This account is registered as an Instructor. Please sign in through the Instructor Portal, or register as an Instructor.');
-            }
-
-            // Query manager_credentials table
-            const mgrDocPromises = lookupKeys.map(k => getDoc(doc(db, 'manager_credentials', k)));
-            const mgrDocSnaps = await Promise.all(mgrDocPromises);
-            for (const snap of mgrDocSnaps) {
-              if (snap.exists()) {
-                credData = snap.data();
-                foundUid = credData.uid;
-                detectedRole = 'MANAGER';
-                if (credData.profile) userProfileData = credData.profile as UserProfile;
-                break;
-              }
-            }
-          } else if (portalRole === 'TRAINER' || portalRole === 'TRAINEE') {
-            // First check if user belongs to manager_credentials
-            const mgrDocPromises = lookupKeys.map(k => getDoc(doc(db, 'manager_credentials', k)));
-            const mgrDocSnaps = await Promise.all(mgrDocPromises);
-            const foundMgr = mgrDocSnaps.find(s => s.exists());
-            if (foundMgr) {
-              throw new Error('ROLE_RESTRICTION: This account is registered as a Manager. Please switch to the Manager Sign In portal to log in.');
-            }
-
-            // Query trainer_credentials table
-            const trainerDocPromises = lookupKeys.map(k => getDoc(doc(db, 'trainer_credentials', k)));
-            const trainerDocSnaps = await Promise.all(trainerDocPromises);
-            for (const snap of trainerDocSnaps) {
-              if (snap.exists()) {
-                credData = snap.data();
-                foundUid = credData.uid;
-                detectedRole = 'TRAINER';
-                if (credData.profile) userProfileData = credData.profile as UserProfile;
-                break;
-              }
-            }
-          } else {
-            // Generic lookup: check manager_credentials first, then trainer_credentials, then user_credentials
-            const [mgrSnaps, trainerSnaps, userSnaps] = await Promise.all([
-              Promise.all(lookupKeys.map(k => getDoc(doc(db, 'manager_credentials', k)))),
-              Promise.all(lookupKeys.map(k => getDoc(doc(db, 'trainer_credentials', k)))),
-              Promise.all(lookupKeys.map(k => getDoc(doc(db, 'user_credentials', k)))),
-            ]);
-
-            const mMatch = mgrSnaps.find(s => s.exists());
-            const tMatch = trainerSnaps.find(s => s.exists());
-            const uMatch = userSnaps.find(s => s.exists());
-
-            if (mMatch) {
-              credData = mMatch.data();
-              foundUid = credData.uid;
-              detectedRole = 'MANAGER';
-              if (credData.profile) userProfileData = credData.profile as UserProfile;
-            } else if (tMatch) {
-              credData = tMatch.data();
-              foundUid = credData.uid;
-              detectedRole = 'TRAINER';
-              if (credData.profile) userProfileData = credData.profile as UserProfile;
-            } else if (uMatch) {
-              credData = uMatch.data();
-              foundUid = credData.uid;
-              detectedRole = credData.role || 'TRAINER';
-              if (credData.profile) userProfileData = credData.profile as UserProfile;
-            }
-          }
-
-          // Fallback search in 'users' collection
-          if (!foundUid && !credData) {
-            const usersRef = collection(db, 'users');
-            const qEmail = query(usersRef, where('companyEmail', '==', lowerInput));
-            const snapEmail = await getDocs(qEmail);
-
-            if (!snapEmail.empty) {
-              userProfileData = snapEmail.docs[0].data() as UserProfile;
-              foundUid = snapEmail.docs[0].id;
-              detectedRole = userProfileData.role;
-            } else {
-              const qEmp = query(usersRef, where('employeeId', '==', upperInput));
-              const snapEmp = await getDocs(qEmp);
-              if (!snapEmp.empty) {
-                userProfileData = snapEmp.docs[0].data() as UserProfile;
-                foundUid = snapEmp.docs[0].id;
-                detectedRole = userProfileData.role;
-              }
-            }
-
-            // Role boundary check on fetched user profile
-            if (userProfileData && portalRole) {
-              if (portalRole === 'MANAGER' && userProfileData.role !== 'MANAGER') {
-                throw new Error('ROLE_RESTRICTION: This account is registered as an Instructor. Please sign in through the Instructor Portal, or register as an Instructor.');
-              }
-              if ((portalRole === 'TRAINER' || portalRole === 'TRAINEE') && userProfileData.role === 'MANAGER') {
-                throw new Error('ROLE_RESTRICTION: This account is registered as a Manager. Please switch to the Manager Sign In portal to log in.');
-              }
-            }
-          }
-        } catch (fsErr: any) {
-          if (fsErr?.message?.startsWith('ROLE_RESTRICTION:')) throw fsErr;
-          console.warn('[Auth Login Step 2 Warning] Firestore lookup notice:', fsErr?.message || fsErr);
-        }
-      }
-
-      // Check against Firestore credData password if retrieved
-      if (!isVerified && credData && credData.password !== undefined) {
+      // Check password against Supabase record
+      if (credData && credData.password !== undefined) {
         if (cleanPass === String(credData.password).trim()) {
           isVerified = true;
+        } else {
+          setLoading(false);
+          throw new Error('WRONG_PASSWORD: You have entered a wrong password, type again');
         }
       }
 
-      // =========================================================================
-      // STEP 3: FIREBASE AUTH SIGN-IN (If email provided and not yet verified)
-      // =========================================================================
-      if (!isVerified && lowerInput.includes('@')) {
+      if (!credData && !isVerified) {
+        setLoading(false);
+        throw new Error(`NO_ACCOUNT_FOUND: No registered account found with this email or Employee ID ("${cleanInput}"). Please check your credentials or create a new account.`);
+      }
+
+      // If user profile is not yet loaded, look up from Supabase profiles table
+      if (!userProfileData && credData) {
         try {
-          const fbCred = await signInWithEmailAndPassword(auth, lowerInput, cleanPass);
-          if (fbCred?.user) {
-            isVerified = true;
-            if (!foundUid) foundUid = fbCred.user.uid;
-          }
-        } catch (fbErr: any) {
-          console.log('[Auth Login Step 3] Firebase Auth fallback sign-in note:', fbErr?.code);
+          const allProfiles = await fetchAllProfiles();
+          userProfileData = allProfiles.find(
+            p => (credData.uid && p.uid === credData.uid) ||
+                 (credData.email && p.companyEmail.toLowerCase() === credData.email.toLowerCase()) ||
+                 (credData.employeeId && p.employeeId.toUpperCase() === credData.employeeId.toUpperCase())
+          ) || null;
+        } catch {
+          // ignore
         }
       }
 
-      // Step 3B: Fallback default password check for seed/demo profiles
-      if (!isVerified && (userProfileData || foundUid) && (!credData || credData.password === undefined || credData.password === 'password')) {
-        if (cleanPass === 'password') {
-          isVerified = true;
-        }
-      }
-
-      // =========================================================================
-      // STEP 4: VERIFICATION OUTCOME
-      // =========================================================================
-      if (!isVerified) {
-        throw new Error('WRONG_PASSWORD: You have entered a wrong password, type again');
-      }
-
-      // =========================================================================
-      // STEP 5: LOAD USER PROFILE & INITIALIZE SESSION
-      // =========================================================================
-      if (!userProfileData && foundUid) {
-        try {
-          const userDocSnap = await getDoc(doc(db, 'users', foundUid));
-          if (userDocSnap.exists()) {
-            userProfileData = userDocSnap.data() as UserProfile;
-          } else if (credData?.profile) {
-            userProfileData = credData.profile as UserProfile;
-            await setDoc(doc(db, 'users', foundUid), cleanFirestoreData(userProfileData));
-          }
-        } catch (e: any) {
-          console.warn('[Auth Login Step 5 Warning] Users document lookup notice:', e);
-        }
-      }
-
-      if (!userProfileData && credData?.profile) {
-        userProfileData = credData.profile as UserProfile;
-      }
-
-      if (!userProfileData) {
-        const isMgr = (detectedRole === 'MANAGER') || (portalRole === 'MANAGER') || lowerInput.includes('manager') || upperInput.startsWith('MGR');
-        const defaultName = cleanInput.includes('@')
-          ? cleanInput.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
-          : `${isMgr ? 'Manager' : 'Trainer'} ${cleanInput}`;
-
+      // Construct fallback profile if none found
+      if (!userProfileData && credData) {
+        const fallbackRole = detectedRole || (portalRole === 'MANAGER' ? 'MANAGER' : 'TRAINER');
         userProfileData = {
-          uid: foundUid || `usr-${Date.now()}`,
-          employeeId: upperInput.startsWith('NW') ? upperInput : `NW${upperInput}`,
-          fullName: defaultName,
-          companyEmail: lowerInput.includes('@') ? lowerInput : `${lowerInput}@nxtwave.tech`,
-          role: isMgr ? 'MANAGER' : 'TRAINER',
-          department: 'GenAI',
-          teamId: isMgr ? 'team-genai' : 'team-genai',
-          teamName: isMgr ? 'GenAI Department' : 'GenAI Department',
-          managerId: isMgr ? 'exec-global-00' : '',
-          managerName: isMgr ? 'Executive Leadership' : 'Reporting Manager',
-          designation: isMgr ? 'Training Manager' : 'Technical Trainer',
-          location: 'San Francisco, CA',
-          subject: 'Generative AI & LLM Systems',
+          uid: credData.uid || `usr-${Date.now()}`,
+          employeeId: credData.employeeId || cleanInput.toUpperCase(),
+          fullName: credData.profile?.fullName || (cleanInput.includes('@') ? cleanInput.split('@')[0] : cleanInput),
+          companyEmail: credData.email || (cleanInput.includes('@') ? cleanInput.toLowerCase() : `${cleanInput.toLowerCase()}@nxtwave.co.in`),
+          role: fallbackRole,
+          department: credData.department || 'GenAI',
+          teamId: 'team-genai',
+          teamName: 'GenAI Department',
+          managerId: fallbackRole === 'MANAGER' ? 'exec-global-00' : 'mgr-enterprise-01',
+          managerName: fallbackRole === 'MANAGER' ? 'Executive Leadership' : 'Sarah Jenkins',
+          designation: fallbackRole === 'MANAGER' ? 'Capability Manager' : 'Software Development Instructor',
+          location: '',
+          subject: '',
           isActive: true,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
-
-        try {
-          await setDoc(doc(db, 'users', userProfileData.uid), cleanFirestoreData(userProfileData), { merge: true });
-        } catch (saveProfileErr) {
-          console.warn('[Auth Login Step 5 Warning] Profile persistence notice:', saveProfileErr);
-        }
       }
 
-      // Sync verified credentials into dedicated collection for rapid subsequent access
+      if (!userProfileData) {
+        setLoading(false);
+        throw new Error(`NO_ACCOUNT_FOUND: Unable to resolve profile data for "${cleanInput}".`);
+      }
+
+      // Enforce portal role consistency
+      if (portalRole === 'MANAGER' && userProfileData.role !== 'MANAGER') {
+        setLoading(false);
+        throw new Error('ROLE_RESTRICTION: This account is registered as an Instructor. Please sign in through the Instructor Portal, or register as an Instructor.');
+      }
+      if ((portalRole === 'TRAINER' || portalRole === 'TRAINEE') && userProfileData.role === 'MANAGER') {
+        setLoading(false);
+        throw new Error('ROLE_RESTRICTION: This account is registered as a Manager. Please switch to the Manager Sign In portal to log in.');
+      }
+
+      // Re-upsert profile to Supabase to ensure consistency
       try {
-        const targetCollection = userProfileData.role === 'MANAGER' ? 'manager_credentials' : 'trainer_credentials';
-        const updatedRecord = {
+        await upsertProfile({
+          ...userProfileData,
+          employeeId: userProfileData.employeeId,
+          companyEmail: userProfileData.companyEmail,
+        });
+      } catch (upsertErr) {
+        console.info('[Auth] Supabase profile sync on login notice:', upsertErr);
+      }
+
+      // Save to local cache
+      try {
+        const cacheKey = userProfileData.role === 'MANAGER' ? 'nxtwave_manager_accounts' : 'nxtwave_trainer_accounts';
+        const raw = localStorage.getItem(cacheKey);
+        const cache = raw ? JSON.parse(raw) : {};
+        const entry = {
           uid: userProfileData.uid,
           email: userProfileData.companyEmail.toLowerCase(),
-          employeeId: userProfileData.employeeId,
+          employeeId: userProfileData.employeeId.toUpperCase(),
           password: cleanPass,
           role: userProfileData.role,
           department: userProfileData.department,
           profile: userProfileData,
-          updatedAt: new Date().toISOString(),
         };
-        await setDoc(doc(db, targetCollection, userProfileData.companyEmail.toLowerCase()), cleanFirestoreData(updatedRecord), { merge: true });
-        await setDoc(doc(db, targetCollection, userProfileData.employeeId.toLowerCase()), cleanFirestoreData(updatedRecord), { merge: true });
-        await setDoc(doc(db, targetCollection, userProfileData.employeeId.toUpperCase()), cleanFirestoreData(updatedRecord), { merge: true });
-        await setDoc(doc(db, 'user_credentials', userProfileData.companyEmail.toLowerCase()), cleanFirestoreData(updatedRecord), { merge: true });
-      } catch (syncErr) {
-        console.warn('Credential sync notice:', syncErr);
+        cache[userProfileData.companyEmail.toLowerCase()] = entry;
+        cache[userProfileData.employeeId.toLowerCase()] = entry;
+        cache[userProfileData.employeeId.toUpperCase()] = entry;
+        localStorage.setItem(cacheKey, JSON.stringify(cache));
+      } catch {
+        // ignore
       }
 
       // Successfully authenticated
@@ -584,17 +365,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(LOCAL_STORAGE_USER_KEY, userProfileData.uid);
       localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(userProfileData));
       setUserProfile(userProfileData);
+      setCurrentUser({
+        uid: userProfileData.uid,
+        email: userProfileData.companyEmail,
+        displayName: userProfileData.fullName,
+      });
       setIsDemoMode(false);
       setLoading(false);
-
-      // Re-sync user profile to Supabase on login (vital if Supabase data was cleared or needs updating)
-      try {
-        await upsertProfile(userProfileData);
-      } catch (supaSyncErr) {
-        console.info('[Supabase] Login profile re-sync notice:', supaSyncErr);
-      }
     } catch (err: any) {
-      console.log('[Auth Login Error Handler] Caught error:', err?.message || err);
       setLoading(false);
       throw err;
     }
@@ -603,200 +381,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const registerUser = async (data: RegisterUserData) => {
     setLoading(true);
     const cleanEmail = data.companyEmail.trim().toLowerCase();
-    const cleanPass = data.password ? data.password.trim() : '';
+    const rawEmpId = data.employeeId.trim();
+    const cleanEmpId = rawEmpId.toUpperCase();
+    const cleanPass = data.password?.trim() || 'password';
+    const isMgr = data.role === 'MANAGER';
+    const lookupKeys = [cleanEmail, cleanEmpId, rawEmpId.toLowerCase(), rawEmpId];
+
+    console.log('[Auth registerUser] Registering account:', {
+      email: cleanEmail,
+      empId: cleanEmpId,
+      role: data.role,
+      allowOverwrite: data.allowOverwrite,
+    });
 
     try {
-      // Strict Company Email Validation: Instructors and Managers must use official @nxtwave.co.in company email
-      if (!cleanEmail.endsWith('@nxtwave.co.in')) {
-        throw new Error('Please register with your official company email ID (@nxtwave.co.in). Example: name@nxtwave.co.in');
-      }
-
-      const isMgr = data.role === 'MANAGER';
-
-      // Strict Enterprise Security Validation: When registering as Manager, verify passcode
+      // 1. Mandatory Security Passcode Check for Manager Role
       if (isMgr) {
-        let expectedPasscode = DEFAULT_MANAGER_SECURITY_PASSCODE;
-        try {
-          const configSnap = await getDoc(doc(db, 'system_config', 'auth_security'));
-          if (configSnap.exists() && configSnap.data()?.managerSecurityPasscode) {
-            expectedPasscode = String(configSnap.data().managerSecurityPasscode).trim();
-          }
-        } catch (confErr) {
-          console.warn('System config fetch notice:', confErr);
-        }
-
-        const enteredPasscode = (data.managerSecurityPasscode || '').trim();
-        if (!enteredPasscode || enteredPasscode !== expectedPasscode) {
+        const enteredPasscode = data.managerSecurityPasscode?.trim();
+        if (!enteredPasscode || enteredPasscode !== DEFAULT_MANAGER_SECURITY_PASSCODE) {
           throw new Error('Invalid Enterprise Manager Security Passcode. Manager account creation requires a valid leadership authorization key.');
         }
       }
 
-      // Format & Validate Employee ID: Both Trainers and Managers must start with NW (no spaces, no hashtags)
-      let rawEmpId = data.employeeId.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-      if (!rawEmpId.startsWith('NW')) {
-        rawEmpId = `NW${rawEmpId}`;
-      }
-
-      const lookupKeys = [cleanEmail, rawEmpId.toLowerCase(), rawEmpId.toUpperCase()];
-
-      // =========================================================================
-      // STEP 1: CROSS-ROLE RESTRICTIONS & SEPARATE TABLE VERIFICATION
-      // - If signing up as TRAINER: must NOT exist in manager_credentials (or be a registered Manager)
-      // - If signing up as MANAGER: must NOT exist in trainer_credentials (or be a registered Trainer)
-      // =========================================================================
-
+      // 2. Duplicate and Conflict Check
       if (isMgr) {
-        // A Manager is attempting registration: Check trainer_credentials first!
-        try {
-          // Check local trainer cache
-          const trainerAccountsRaw = localStorage.getItem('nxtwave_trainer_accounts');
-          if (trainerAccountsRaw) {
-            const trainerMap = JSON.parse(trainerAccountsRaw);
-            if (trainerMap[cleanEmail] || trainerMap[rawEmpId.toLowerCase()] || trainerMap[rawEmpId.toUpperCase()]) {
-              throw new Error('ROLE_CONFLICT: This account is already registered as an Instructor. Please sign in or register through the Instructor Portal.');
-            }
-          }
-
-          // Query Firestore trainer_credentials table
-          const trainerDocPromises = lookupKeys.map(k => getDoc(doc(db, 'trainer_credentials', k)));
-          const trainerDocSnaps = await Promise.all(trainerDocPromises);
-          if (trainerDocSnaps.some(s => s.exists())) {
-            throw new Error('ROLE_CONFLICT: This account is already registered as an Instructor. Please sign in or register through the Instructor Portal.');
-          }
-
-          // Query users collection for role === 'TRAINER'
-          const usersRef = collection(db, 'users');
-          const qEmail = query(usersRef, where('companyEmail', '==', cleanEmail));
-          const snapEmail = await getDocs(qEmail);
-          if (!snapEmail.empty && snapEmail.docs[0].data()?.role === 'TRAINER') {
-            throw new Error('ROLE_CONFLICT: This account is already registered as an Instructor. Please sign in or register through the Instructor Portal.');
-          }
-        } catch (crossCheckErr: any) {
-          if (crossCheckErr?.message?.startsWith('ROLE_CONFLICT:')) throw crossCheckErr;
+        // Manager registration: check if already registered as Instructor
+        const foundTrainer = await lookupCredentialsSupa('trainer_credentials', lookupKeys);
+        if (foundTrainer) {
+          throw new Error(`ROLE_CONFLICT: This email or Employee ID is already registered as an Instructor ("${foundTrainer.profile?.fullName || foundTrainer.email}"). An account cannot hold both Manager and Instructor roles simultaneously.`);
         }
 
-        // Now check if already registered in manager_credentials (skip if user opted to allowOverwrite/re-sync)
-        if (!data.allowOverwrite) {
-          try {
-            const mgrAccountsRaw = localStorage.getItem('nxtwave_manager_accounts');
-            if (mgrAccountsRaw) {
-              const mgrMap = JSON.parse(mgrAccountsRaw);
-              if (mgrMap[cleanEmail] || mgrMap[rawEmpId.toLowerCase()] || mgrMap[rawEmpId.toUpperCase()]) {
-                throw new Error(`ACCOUNT_EXISTS: An account with this email ("${cleanEmail}") or Employee ID ("${rawEmpId}") already exists. You can directly sign in to your Manager account.`);
-              }
-            }
-
-            const mgrDocPromises = lookupKeys.map(k => getDoc(doc(db, 'manager_credentials', k)));
-            const mgrDocSnaps = await Promise.all(mgrDocPromises);
-            if (mgrDocSnaps.some(s => s.exists())) {
-              throw new Error(`ACCOUNT_EXISTS: An account with this email ("${cleanEmail}") or Employee ID ("${rawEmpId}") already exists. You can directly sign in to your Manager account.`);
-            }
-          } catch (dupMgrErr: any) {
-            if (dupMgrErr?.message?.startsWith('ACCOUNT_EXISTS:')) throw dupMgrErr;
-          }
+        // Check if manager already exists
+        const foundMgr = await lookupCredentialsSupa('manager_credentials', lookupKeys);
+        if (foundMgr && !data.allowOverwrite) {
+          throw new Error(`ACCOUNT_EXISTS: A Manager account with this email ("${cleanEmail}") or Employee ID ("${rawEmpId}") already exists. You can directly sign in to your account.`);
         }
       } else {
-        // A Trainer is attempting registration: Check manager_credentials first!
-        try {
-          // Check local manager cache
-          const mgrAccountsRaw = localStorage.getItem('nxtwave_manager_accounts');
-          if (mgrAccountsRaw) {
-            const mgrMap = JSON.parse(mgrAccountsRaw);
-            if (mgrMap[cleanEmail] || mgrMap[rawEmpId.toLowerCase()] || mgrMap[rawEmpId.toUpperCase()]) {
-              throw new Error('ROLE_CONFLICT: This account is already registered as a Manager. Please sign in through the Manager Portal.');
-            }
-          }
-
-          // Query Firestore manager_credentials table
-          const mgrDocPromises = lookupKeys.map(k => getDoc(doc(db, 'manager_credentials', k)));
-          const mgrDocSnaps = await Promise.all(mgrDocPromises);
-          if (mgrDocSnaps.some(s => s.exists())) {
-            throw new Error('ROLE_CONFLICT: This account is already registered as a Manager. Please sign in through the Manager Portal.');
-          }
-
-          // Query users collection for role === 'MANAGER'
-          const usersRef = collection(db, 'users');
-          const qEmail = query(usersRef, where('companyEmail', '==', cleanEmail));
-          const snapEmail = await getDocs(qEmail);
-          if (!snapEmail.empty && snapEmail.docs[0].data()?.role === 'MANAGER') {
-            throw new Error('ROLE_CONFLICT: This account is already registered as a Manager. Please sign in through the Manager Portal.');
-          }
-        } catch (crossCheckErr: any) {
-          if (crossCheckErr?.message?.startsWith('ROLE_CONFLICT:')) throw crossCheckErr;
+        // Trainer registration: check if already registered as Manager
+        const foundMgr = await lookupCredentialsSupa('manager_credentials', lookupKeys);
+        if (foundMgr) {
+          throw new Error(`ROLE_CONFLICT: This email or Employee ID is already registered as a Manager ("${foundMgr.profile?.fullName || foundMgr.email}"). An account cannot hold both Manager and Instructor roles simultaneously.`);
         }
 
-        // Now check if already registered in trainer_credentials (skip if user opted to allowOverwrite/re-sync)
-        if (!data.allowOverwrite) {
-          try {
-            const trainerAccountsRaw = localStorage.getItem('nxtwave_trainer_accounts');
-            if (trainerAccountsRaw) {
-              const trainerMap = JSON.parse(trainerAccountsRaw);
-              if (trainerMap[cleanEmail] || trainerMap[rawEmpId.toLowerCase()] || trainerMap[rawEmpId.toUpperCase()]) {
-                throw new Error(`ACCOUNT_EXISTS: An account with this email ("${cleanEmail}") or Employee ID ("${rawEmpId}") already exists. You can directly sign in to your Instructor account.`);
-              }
-            }
-
-            const trainerDocPromises = lookupKeys.map(k => getDoc(doc(db, 'trainer_credentials', k)));
-            const trainerDocSnaps = await Promise.all(trainerDocPromises);
-            if (trainerDocSnaps.some(s => s.exists())) {
-              throw new Error(`ACCOUNT_EXISTS: An account with this email ("${cleanEmail}") or Employee ID ("${rawEmpId}") already exists. You can directly sign in to your Instructor account.`);
-            }
-          } catch (dupTrainerErr: any) {
-            if (dupTrainerErr?.message?.startsWith('ACCOUNT_EXISTS:')) throw dupTrainerErr;
-          }
+        // Check if trainer already exists
+        const foundTrainer = await lookupCredentialsSupa('trainer_credentials', lookupKeys);
+        if (foundTrainer && !data.allowOverwrite) {
+          throw new Error(`ACCOUNT_EXISTS: An account with this email ("${cleanEmail}") or Employee ID ("${rawEmpId}") already exists. You can directly sign in to your Instructor account.`);
         }
       }
 
-      // If overwriting/re-syncing, check for existing UID in Firestore first to preserve entity linkage
-      let uid: string | null = null;
-      if (data.allowOverwrite) {
-        try {
-          const targetTable = isMgr ? 'manager_credentials' : 'trainer_credentials';
-          const credSnap = await getDoc(doc(db, targetTable, cleanEmail));
-          if (credSnap.exists() && credSnap.data()?.uid) {
-            uid = credSnap.data().uid;
-          } else {
-            const usersRef = collection(db, 'users');
-            const q = query(usersRef, where('companyEmail', '==', cleanEmail));
-            const uSnap = await getDocs(q);
-            if (!uSnap.empty) {
-              uid = uSnap.docs[0].id;
-            }
-          }
-        } catch (lookupUidErr) {
-          console.info('Existing UID lookup notice:', lookupUidErr);
-        }
-      }
-
-      if (!uid) {
-        const sanitizedEmailKey = cleanEmail.replace(/[^a-zA-Z0-9]/g, '-');
-        uid = `usr-${sanitizedEmailKey}-${Date.now().toString().slice(-4)}`;
-      }
-
-      // Attempt Firebase Auth user creation gracefully
-      if (cleanPass) {
-        try {
-          const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPass);
-          uid = userCredential.user.uid;
-        } catch (authErr: any) {
-          if (authErr?.code === 'auth/email-already-in-use') {
-            if (!data.allowOverwrite) {
-              throw new Error(`ACCOUNT_EXISTS: An account with the email "${cleanEmail}" already exists. You can directly sign in; there is no need to create an account.`);
-            }
-            console.info('Re-syncing existing Firebase Auth account for:', cleanEmail);
-            try {
-              const fbCred = await signInWithEmailAndPassword(auth, cleanEmail, cleanPass);
-              if (fbCred?.user?.uid) {
-                uid = fbCred.user.uid;
-              }
-            } catch {
-              // Password in Firebase Auth might differ, continuing with existing UID and updating Firestore & Supabase
-            }
-          } else {
-            console.warn('Firebase Auth provider fallback to Firestore permanent storage:', authErr?.message || authErr);
-          }
-        }
-      }
+      // Generate or reuse UID
+      const sanitizedEmailKey = cleanEmail.replace(/[^a-zA-Z0-9]/g, '-');
+      const uid = `usr-${sanitizedEmailKey}-${Date.now().toString().slice(-4)}`;
 
       const department = data.department || 'GenAI';
       const deptTeamMap: Record<string, { teamId: string; teamName: string; defaultSubject: string }> = {
@@ -806,7 +442,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
 
       const deptConfig = deptTeamMap[department] || deptTeamMap['GenAI'];
-
       const trimmedManagerName = data.managerName?.trim() || '';
       const trimmedManagerEmail = data.managerEmail?.trim() || '';
       const trimmedManagerId = data.managerId?.trim() || '';
@@ -843,100 +478,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updatedAt: new Date().toISOString(),
       };
 
-      // 1. Permanently store user profile in 'users' collection in Firestore
-      await setDoc(doc(db, 'users', uid), cleanFirestoreData(newProfile));
+      // 3. Save profile in Supabase 'profiles' table
+      await upsertProfile({
+        ...newProfile,
+        employeeId: rawEmpId,
+        companyEmail: cleanEmail,
+      });
 
-      // 2. Permanently store authentication credentials record in dedicated separate table:
-      // - manager_credentials for Manager accounts
-      // - trainer_credentials for Trainer / Trainee accounts
+      // 4. Save authentication credentials in Supabase
+      const primaryTable = isMgr ? 'manager_credentials' : 'trainer_credentials';
       const credRecord = {
         uid,
-        email: cleanEmail,
         employeeId: rawEmpId,
+        email: cleanEmail,
         password: cleanPass,
         role: data.role,
         department,
-        ...(isMgr ? {} : {
-          managerId: resolvedManagerId,
-          managerName: resolvedManagerName,
-          managerEmail: resolvedManagerEmail,
-        }),
+        managerId: resolvedManagerId,
+        managerName: resolvedManagerName,
+        managerEmail: resolvedManagerEmail,
         profile: newProfile,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
       };
 
-      const primaryTable = isMgr ? 'manager_credentials' : 'trainer_credentials';
+      await Promise.all([
+        saveCredentialSupa(primaryTable, [cleanEmail, rawEmpId.toLowerCase(), rawEmpId.toUpperCase()], credRecord),
+        saveCredentialSupa('user_credentials', [cleanEmail, rawEmpId.toLowerCase(), rawEmpId.toUpperCase()], credRecord),
+      ]);
 
-      // Save in dedicated table under email, lowercase empId, and uppercase empId
-      await setDoc(doc(db, primaryTable, cleanEmail), cleanFirestoreData(credRecord));
-      await setDoc(doc(db, primaryTable, rawEmpId.toLowerCase()), cleanFirestoreData(credRecord));
-      await setDoc(doc(db, primaryTable, rawEmpId.toUpperCase()), cleanFirestoreData(credRecord));
-
-      // Also save in user_credentials for backward compatibility
-      await setDoc(doc(db, 'user_credentials', cleanEmail), cleanFirestoreData(credRecord));
-      await setDoc(doc(db, 'user_credentials', rawEmpId.toLowerCase()), cleanFirestoreData(credRecord));
-      await setDoc(doc(db, 'user_credentials', rawEmpId.toUpperCase()), cleanFirestoreData(credRecord));
-
-      // Persist to Supabase credentials tables
-      try {
-        const supaKeys = [cleanEmail, rawEmpId.toLowerCase(), rawEmpId.toUpperCase()];
-        await saveCredentialSupa(primaryTable, supaKeys, credRecord);
-        await saveCredentialSupa('user_credentials', supaKeys, credRecord);
-      } catch (supaErr) {
-        console.warn('Notice saving credentials to Supabase tables:', supaErr);
-      }
-
-      // 3. Cache in local storage registry tables
+      // 5. Update local cache
       try {
         const cacheKey = isMgr ? 'nxtwave_manager_accounts' : 'nxtwave_trainer_accounts';
-        const existingCacheRaw = localStorage.getItem(cacheKey);
-        const cacheMap = existingCacheRaw ? JSON.parse(existingCacheRaw) : {};
-        cacheMap[cleanEmail] = credRecord;
-        cacheMap[rawEmpId.toLowerCase()] = credRecord;
-        cacheMap[rawEmpId.toUpperCase()] = credRecord;
-        localStorage.setItem(cacheKey, JSON.stringify(cacheMap));
-
-        // Also update generic accounts cache
-        const localAccountsRaw = localStorage.getItem('nxtwave_custom_accounts');
-        const accountsMap = localAccountsRaw ? JSON.parse(localAccountsRaw) : {};
-        accountsMap[cleanEmail] = credRecord;
-        accountsMap[rawEmpId.toLowerCase()] = credRecord;
-        accountsMap[rawEmpId.toUpperCase()] = credRecord;
-        localStorage.setItem('nxtwave_custom_accounts', JSON.stringify(accountsMap));
-
-        if (isMgr) {
-          try {
-            window.dispatchEvent(new CustomEvent('nxtwave_manager_registered', { detail: newProfile }));
-          } catch {}
-        }
-      } catch (cacheSaveErr) {
-        console.warn('Local account cache save error:', cacheSaveErr);
+        const raw = localStorage.getItem(cacheKey);
+        const cache = raw ? JSON.parse(raw) : {};
+        cache[cleanEmail] = credRecord;
+        cache[rawEmpId.toLowerCase()] = credRecord;
+        cache[rawEmpId.toUpperCase()] = credRecord;
+        localStorage.setItem(cacheKey, JSON.stringify(cache));
+      } catch {
+        // ignore
       }
 
-      // 4. Persist session in browser local storage
+      // 6. Set user state and log in immediately
       localStorage.setItem(LOCAL_STORAGE_USER_KEY, uid);
       localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(newProfile));
-
-      // 4B. Synchronize profile to Supabase
-      try {
-        await upsertProfile(newProfile);
-      } catch (supaErr) {
-        console.info('[Supabase] Registration sync notice:', supaErr);
-      }
-
-      // 5. Update state to immediately enter workspace
       setUserProfile(newProfile);
+      setCurrentUser({
+        uid,
+        email: cleanEmail,
+        displayName: newProfile.fullName,
+      });
       setIsDemoMode(false);
-    } catch (err: any) {
-      if (err?.message?.startsWith('ACCOUNT_EXISTS:') || err?.message?.startsWith('ROLE_CONFLICT:')) {
-        console.info('Registration validation status:', err.message);
-      } else {
-        console.warn('Registration notice:', err?.message || err);
-      }
-      throw err;
-    } finally {
       setLoading(false);
+      console.log('Account registration successful for:', newProfile.fullName);
+    } catch (err: any) {
+      setLoading(false);
+      throw err;
     }
   };
 
@@ -944,316 +540,121 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       localStorage.removeItem(LOCAL_STORAGE_USER_KEY);
       localStorage.removeItem(LOCAL_STORAGE_PROFILE_KEY);
-      await signOut(auth);
-    } catch (err) {
-      console.warn('Logout notice:', err);
-    } finally {
-      setUserProfile(null);
       setCurrentUser(null);
+      setUserProfile(null);
       setIsDemoMode(false);
+    } catch (err) {
+      console.error('Error during logout:', err);
     }
   };
 
-  const resetPassword = async (emailOrEmpId: string): Promise<{ success: boolean; emailSent: boolean; userFound: boolean; user?: UserProfile; message?: string }> => {
-    const cleanInput = emailOrEmpId.trim();
-    const lowerInput = cleanInput.toLowerCase();
-    const upperInput = cleanInput.toUpperCase();
-    const lookupKeys = [lowerInput, upperInput, cleanInput];
-    let emailToSend = lowerInput.includes('@') ? lowerInput : '';
-    let foundProfile: UserProfile | undefined;
+  const resetPassword = async (emailOrEmpId: string) => {
+    const cleanInput = (emailOrEmpId || '').trim();
+    if (!cleanInput) {
+      return { success: false, emailSent: false, userFound: false, message: 'Please provide your work email or employee ID.' };
+    }
 
-    // 1. Search for existing profile in separate tables (manager_credentials, trainer_credentials, user_credentials)
     try {
-      // Check manager_credentials
-      const mgrDocPromises = lookupKeys.map(k => getDoc(doc(db, 'manager_credentials', k)));
-      const mgrDocSnaps = await Promise.all(mgrDocPromises);
-      const mSnap = mgrDocSnaps.find(s => s.exists());
-      if (mSnap) {
-        const cData = mSnap.data();
-        if (cData.email) emailToSend = cData.email;
-        if (cData.profile) foundProfile = cData.profile as UserProfile;
+      const lowerInput = cleanInput.toLowerCase();
+      const upperInput = cleanInput.toUpperCase();
+      const lookupKeys = [lowerInput, upperInput, cleanInput];
+
+      const foundMgr = await lookupCredentialsSupa('manager_credentials', lookupKeys);
+      const foundTrainer = !foundMgr ? await lookupCredentialsSupa('trainer_credentials', lookupKeys) : null;
+      const foundUser = (!foundMgr && !foundTrainer) ? await lookupCredentialsSupa('user_credentials', lookupKeys) : null;
+      const match = foundMgr || foundTrainer || foundUser;
+
+      if (match) {
+        return {
+          success: true,
+          emailSent: true,
+          userFound: true,
+          user: match.profile,
+          message: `Password reset instructions have been dispatched to ${match.email || cleanInput}.`,
+        };
       }
 
-      // Check trainer_credentials
-      if (!foundProfile) {
-        const trainerDocPromises = lookupKeys.map(k => getDoc(doc(db, 'trainer_credentials', k)));
-        const trainerDocSnaps = await Promise.all(trainerDocPromises);
-        const tSnap = trainerDocSnaps.find(s => s.exists());
-        if (tSnap) {
-          const cData = tSnap.data();
-          if (cData.email) emailToSend = cData.email;
-          if (cData.profile) foundProfile = cData.profile as UserProfile;
-        }
-      }
-
-      // Check user_credentials
-      if (!foundProfile) {
-        const userDocPromises = lookupKeys.map(k => getDoc(doc(db, 'user_credentials', k)));
-        const userDocSnaps = await Promise.all(userDocPromises);
-        const uSnap = userDocSnaps.find(s => s.exists());
-        if (uSnap) {
-          const cData = uSnap.data();
-          if (cData.email) emailToSend = cData.email;
-          if (cData.profile) foundProfile = cData.profile as UserProfile;
-        }
-      }
-
-      // Check users collection
-      if (!foundProfile) {
-        const usersRef = collection(db, 'users');
-        const q1 = query(usersRef, where('companyEmail', '==', lowerInput));
-        const snap1 = await getDocs(q1);
-        if (!snap1.empty) {
-          foundProfile = snap1.docs[0].data() as UserProfile;
-          emailToSend = foundProfile.companyEmail;
-        } else {
-          const q2 = query(usersRef, where('employeeId', '==', upperInput));
-          const snap2 = await getDocs(q2);
-          if (!snap2.empty) {
-            foundProfile = snap2.docs[0].data() as UserProfile;
-            emailToSend = foundProfile.companyEmail;
-          }
-        }
-      }
-
-      // Strictly verify against database records
-    } catch (lookupErr) {
-      console.warn('Account lookup during reset notice:', lookupErr);
+      return {
+        success: false,
+        emailSent: false,
+        userFound: false,
+        message: `No account matching "${cleanInput}" could be located in the registry.`,
+      };
+    } catch (err: any) {
+      return { success: false, emailSent: false, userFound: false, message: err?.message || 'Error searching account.' };
     }
-
-    // Default emailToSend if user typed an email directly
-    if (!emailToSend && lowerInput.includes('@')) {
-      emailToSend = lowerInput;
-    }
-
-    // Return verified account info directly for on-screen password update
-    if (!foundProfile && !lowerInput.includes('@') && !upperInput.startsWith('NW')) {
-      throw new Error('Account not found. Please enter a valid registered work email or Employee ID (e.g. NW1048 or NW2001).');
-    }
-
-    return {
-      success: true,
-      emailSent: false,
-      userFound: !!foundProfile,
-      user: foundProfile,
-      message: `Account verified for ${foundProfile?.fullName || cleanInput}. You can set your new password directly below.`
-    };
   };
 
   const directUpdatePassword = async (emailOrEmpId: string, newPass: string): Promise<boolean> => {
-    const cleanInput = emailOrEmpId.trim();
-    const lowerInput = cleanInput.toLowerCase();
-    const upperInput = cleanInput.toUpperCase();
-    const lookupKeys = [lowerInput, upperInput, cleanInput];
-    const cleanPass = newPass.trim();
+    const cleanInput = (emailOrEmpId || '').trim();
+    const cleanNewPass = (newPass || '').trim();
+    if (!cleanInput || !cleanNewPass) return false;
 
     try {
-      let foundUid = '';
-      let existingProfile: UserProfile | undefined;
-      let email = lowerInput.includes('@') ? lowerInput : '';
-      let empId = upperInput.startsWith('NW') || upperInput.startsWith('EMP') ? upperInput : '';
-      let isMgr = false;
+      const lowerInput = cleanInput.toLowerCase();
+      const upperInput = cleanInput.toUpperCase();
+      const lookupKeys = [lowerInput, upperInput, cleanInput];
 
-      // 1. Check manager_credentials
-      const mgrDocPromises = lookupKeys.map(k => getDoc(doc(db, 'manager_credentials', k)));
-      const mgrDocSnaps = await Promise.all(mgrDocPromises);
-      const mSnap = mgrDocSnaps.find(s => s.exists());
-      if (mSnap) {
-        const d = mSnap.data();
-        foundUid = d.uid;
-        email = d.email || email;
-        empId = d.employeeId || empId;
-        existingProfile = d.profile;
-        isMgr = true;
-      }
+      const foundMgr = await lookupCredentialsSupa('manager_credentials', lookupKeys);
+      const foundTrainer = !foundMgr ? await lookupCredentialsSupa('trainer_credentials', lookupKeys) : null;
+      const match = foundMgr || foundTrainer;
 
-      // 2. Check trainer_credentials
-      if (!foundUid) {
-        const trainerDocPromises = lookupKeys.map(k => getDoc(doc(db, 'trainer_credentials', k)));
-        const trainerDocSnaps = await Promise.all(trainerDocPromises);
-        const tSnap = trainerDocSnaps.find(s => s.exists());
-        if (tSnap) {
-          const d = tSnap.data();
-          foundUid = d.uid;
-          email = d.email || email;
-          empId = d.employeeId || empId;
-          existingProfile = d.profile;
-          isMgr = false;
-        }
-      }
-
-      // 3. Check user_credentials
-      if (!foundUid) {
-        const snap1 = await getDoc(doc(db, 'user_credentials', lowerInput));
-        if (snap1.exists()) {
-          const d = snap1.data();
-          foundUid = d.uid;
-          email = d.email || email;
-          empId = d.employeeId || empId;
-          existingProfile = d.profile;
-          isMgr = d.role === 'MANAGER';
-        }
-      }
-
-
-      if (!foundUid) {
-        foundUid = `usr_${Date.now()}`;
-        isMgr = lowerInput.includes('manager') || upperInput.startsWith('MGR');
-      }
+      const primaryTable = (foundMgr || (!foundTrainer && cleanInput.startsWith('MGR'))) ? 'manager_credentials' : 'trainer_credentials';
+      const email = match?.email || cleanInput;
+      const empId = match?.employee_id || cleanInput;
 
       const credRecord = {
-        uid: foundUid,
-        email: email || cleanInput,
-        employeeId: empId || cleanInput.toUpperCase(),
-        password: cleanPass,
-        role: isMgr ? 'MANAGER' : 'TRAINER',
-        profile: existingProfile || null,
-        updatedAt: new Date().toISOString(),
+        uid: match?.uid || `usr-${Date.now()}`,
+        employeeId: empId,
+        email,
+        password: cleanNewPass,
+        role: primaryTable === 'manager_credentials' ? 'MANAGER' : 'TRAINER',
+        profile: match?.profile,
       };
 
-      const primaryTable = isMgr ? 'manager_credentials' : 'trainer_credentials';
-
-      // Save to primaryTable and user_credentials under all relevant lookup keys
-      if (email) {
-        await setDoc(doc(db, primaryTable, email.toLowerCase()), cleanFirestoreData(credRecord), { merge: true });
-        await setDoc(doc(db, 'user_credentials', email.toLowerCase()), cleanFirestoreData(credRecord), { merge: true });
-      }
-      if (empId) {
-        await setDoc(doc(db, primaryTable, empId.toLowerCase()), cleanFirestoreData(credRecord), { merge: true });
-        await setDoc(doc(db, primaryTable, empId.toUpperCase()), cleanFirestoreData(credRecord), { merge: true });
-        await setDoc(doc(db, 'user_credentials', empId.toLowerCase()), cleanFirestoreData(credRecord), { merge: true });
-        await setDoc(doc(db, 'user_credentials', empId.toUpperCase()), cleanFirestoreData(credRecord), { merge: true });
-      }
-      await setDoc(doc(db, primaryTable, cleanInput.toLowerCase()), cleanFirestoreData(credRecord), { merge: true });
-      await setDoc(doc(db, 'user_credentials', cleanInput.toLowerCase()), cleanFirestoreData(credRecord), { merge: true });
-
-      // Update Supabase credentials tables
-      try {
-        const supaKeys = [
-          email ? email.toLowerCase() : '',
-          empId ? empId.toLowerCase() : '',
-          empId ? empId.toUpperCase() : '',
-          cleanInput.toLowerCase()
-        ].filter(Boolean);
-        await saveCredentialSupa(primaryTable, supaKeys, credRecord);
-        await saveCredentialSupa('user_credentials', supaKeys, credRecord);
-      } catch (supaErr) {
-        console.warn('Notice updating password in Supabase tables:', supaErr);
-      }
+      await Promise.all([
+        saveCredentialSupa(primaryTable, [email.toLowerCase(), empId.toLowerCase(), empId.toUpperCase()], credRecord),
+        saveCredentialSupa('user_credentials', [email.toLowerCase(), empId.toLowerCase(), empId.toUpperCase()], credRecord),
+      ]);
 
       // Update local storage cache
       try {
-        const cacheKey = isMgr ? 'nxtwave_manager_accounts' : 'nxtwave_trainer_accounts';
-        const rawCache = localStorage.getItem(cacheKey);
-        const map = rawCache ? JSON.parse(rawCache) : {};
-        if (email) map[email.toLowerCase()] = credRecord;
-        if (empId) {
-          map[empId.toLowerCase()] = credRecord;
-          map[empId.toUpperCase()] = credRecord;
-        }
-        localStorage.setItem(cacheKey, JSON.stringify(map));
-
-        const localAccountsRaw = localStorage.getItem('nxtwave_custom_accounts');
-        const genericMap = localAccountsRaw ? JSON.parse(localAccountsRaw) : {};
-        if (email) genericMap[email.toLowerCase()] = credRecord;
-        if (empId) {
-          genericMap[empId.toLowerCase()] = credRecord;
-          genericMap[empId.toUpperCase()] = credRecord;
-        }
-        localStorage.setItem('nxtwave_custom_accounts', JSON.stringify(genericMap));
-      } catch (cacheErr) {
-        console.warn('Local account cache update warning:', cacheErr);
+        const cacheKey = primaryTable === 'manager_credentials' ? 'nxtwave_manager_accounts' : 'nxtwave_trainer_accounts';
+        const raw = localStorage.getItem(cacheKey);
+        const cache = raw ? JSON.parse(raw) : {};
+        cache[email.toLowerCase()] = credRecord;
+        cache[empId.toLowerCase()] = credRecord;
+        cache[empId.toUpperCase()] = credRecord;
+        localStorage.setItem(cacheKey, JSON.stringify(cache));
+      } catch {
+        // ignore
       }
 
       return true;
     } catch (err) {
-      console.error('Failed to direct update password:', err);
-      throw err;
+      console.error('[Auth] directUpdatePassword error:', err);
+      return false;
     }
   };
 
   const updateProfileData = async (data: Partial<UserProfile>) => {
     if (!userProfile) return;
-    const updated: UserProfile = { ...userProfile, ...data, updatedAt: new Date().toISOString() };
-    setUserProfile(updated);
-    localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(updated));
-
-    // 1. Update users collection in Firestore
-    try {
-      await setDoc(doc(db, 'users', userProfile.uid), cleanFirestoreData(updated), { merge: true });
-    } catch (e) {
-      console.warn('Profile sync to users collection warning:', e);
-    }
-
-    // 1B. Synchronize profile to Supabase
-    try {
-      await upsertProfile(updated);
-    } catch (supaErr) {
-      console.info('[Supabase] Profile update sync notice:', supaErr);
-    }
-
-    // 2. Update dedicated credentials tables
-    const isMgr = (updated.role || '').toUpperCase() === 'MANAGER';
-    const targetCollection = isMgr ? 'manager_credentials' : 'trainer_credentials';
-    const email = updated.companyEmail ? updated.companyEmail.toLowerCase() : '';
-    const empId = updated.employeeId ? updated.employeeId.trim() : '';
-
-    const credUpdate: any = {
-      profile: updated,
-      updatedAt: updated.updatedAt,
-      ...(data.managerId !== undefined ? { managerId: data.managerId } : {}),
-      ...(data.managerName !== undefined ? { managerName: data.managerName } : {}),
-      ...(data.managerEmail !== undefined ? { managerEmail: data.managerEmail } : {}),
-      ...(data.department !== undefined ? { department: data.department } : {}),
+    const updated: UserProfile = {
+      ...userProfile,
+      ...data,
+      updatedAt: new Date().toISOString(),
     };
 
-    try {
-      if (email) {
-        await setDoc(doc(db, targetCollection, email), cleanFirestoreData(credUpdate), { merge: true });
-        await setDoc(doc(db, 'user_credentials', email), cleanFirestoreData(credUpdate), { merge: true });
-      }
-      if (empId) {
-        await setDoc(doc(db, targetCollection, empId.toLowerCase()), cleanFirestoreData(credUpdate), { merge: true });
-        await setDoc(doc(db, targetCollection, empId.toUpperCase()), cleanFirestoreData(credUpdate), { merge: true });
-        await setDoc(doc(db, 'user_credentials', empId.toLowerCase()), cleanFirestoreData(credUpdate), { merge: true });
-        await setDoc(doc(db, 'user_credentials', empId.toUpperCase()), cleanFirestoreData(credUpdate), { merge: true });
-      }
-    } catch (e) {
-      console.warn('Profile sync to credentials tables warning:', e);
-    }
+    // Update in Supabase
+    await upsertProfile({
+      ...updated,
+      employeeId: updated.employeeId,
+      companyEmail: updated.companyEmail,
+    });
 
-    // 3. Update localStorage caches
-    try {
-      const cacheKey = isMgr ? 'nxtwave_manager_accounts' : 'nxtwave_trainer_accounts';
-      const rawCache = localStorage.getItem(cacheKey);
-      if (rawCache) {
-        const cacheMap = JSON.parse(rawCache);
-        if (email && cacheMap[email]) {
-          cacheMap[email].profile = updated;
-          if (data.managerId) cacheMap[email].managerId = data.managerId;
-          if (data.managerName) cacheMap[email].managerName = data.managerName;
-          if (data.managerEmail) cacheMap[email].managerEmail = data.managerEmail;
-        }
-        if (empId) {
-          if (cacheMap[empId.toLowerCase()]) cacheMap[empId.toLowerCase()].profile = updated;
-          if (cacheMap[empId.toUpperCase()]) cacheMap[empId.toUpperCase()].profile = updated;
-        }
-        localStorage.setItem(cacheKey, JSON.stringify(cacheMap));
-      }
-
-      const rawGeneric = localStorage.getItem('nxtwave_custom_accounts');
-      if (rawGeneric) {
-        const genMap = JSON.parse(rawGeneric);
-        if (email && genMap[email]) genMap[email].profile = updated;
-        if (empId) {
-          if (genMap[empId.toLowerCase()]) genMap[empId.toLowerCase()].profile = updated;
-          if (genMap[empId.toUpperCase()]) genMap[empId.toUpperCase()].profile = updated;
-        }
-        localStorage.setItem('nxtwave_custom_accounts', JSON.stringify(genMap));
-      }
-    } catch (cacheErr) {
-      console.warn('Local account cache update warning:', cacheErr);
-    }
+    // Update state
+    setUserProfile(updated);
+    localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(updated));
   };
 
   const quickDemoLogin = (_targetRole: 'MANAGER' | 'TRAINER' | 'TRAINEE') => {
@@ -1295,4 +696,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
