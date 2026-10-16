@@ -403,6 +403,13 @@ export function exportIndividualInstructorExcel(
 ) {
   const { instructor, startDateStr, endDateStr, dailyRecords, weeklySummaries, monthlySummaries, totals } = reportData;
   const wb = XLSX.utils.book_new();
+  wb.Props = {
+    Title: "Instructor Performance & Workload Report",
+    Subject: "Technical Talent Operations",
+    Author: "Nuthi Yashwanth",
+    Company: "Engineered by Nuthi Yashwanth",
+    Comments: "Final Performance Management System • Developed by Nuthi Yashwanth (@Yashwanth258)"
+  };
 
   // 1. Sheet 1: Daily Work & Attendance Log
   const sheet1Data: (string | number)[][] = [
@@ -668,6 +675,13 @@ export function exportFullTeamIndividualReportsExcel(
   }
 
   const wb = XLSX.utils.book_new();
+  wb.Props = {
+    Title: "Team Instructor Executive Summary & Workload Report",
+    Subject: "Technical Talent Operations",
+    Author: "Nuthi Yashwanth",
+    Company: "Engineered by Nuthi Yashwanth",
+    Comments: "Final Performance Management System • Developed by Nuthi Yashwanth (@Yashwanth258)"
+  };
 
   // Process data for every instructor
   const allReports: InstructorReportData[] = allManagedInstructors.map(instructor => {
