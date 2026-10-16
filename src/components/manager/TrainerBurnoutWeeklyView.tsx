@@ -64,6 +64,8 @@ export interface DayLogData {
   underHours: number; // Math.max(0, 6.0 - hoursLogged)
   leaveHours: number;
   missedHours: number;
+  preJoinHours?: number;
+  isPreJoiningDay?: boolean;
   displayTotalHours: number;
   isMissedLog: boolean;
   isLeave: boolean;
@@ -294,7 +296,9 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
               dateStr,
               formattedDate,
               hoursLogged: 0,
-              standardHours: 6.0,
+              standardHours: 0,
+              preJoinHours: 6.0,
+              isPreJoiningDay: true,
               burnoutHours: 0,
               underHours: 0,
               leaveHours: 0,
@@ -303,8 +307,8 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
               isMissedLog: false,
               isLeave: false,
               statusType: 'not_started',
-              statusLabel: 'Pre-joining',
-              statusNote: `Account created on ${joinDateFormatted}. No records prior to joining date.`,
+              statusLabel: 'Pre-Registration',
+              statusNote: `Account created on ${joinDateFormatted}. Prior to account registration date.`,
               extraWorkReason: 'None',
               extraWorkDetails: '',
               classesCount: 0,
@@ -569,6 +573,8 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
       burnoutHours: d.burnoutHours,
       leaveHours: d.leaveHours,
       missedHours: d.missedHours,
+      preJoinHours: d.preJoinHours || 0,
+      isPreJoiningDay: !!d.isPreJoiningDay,
       totalHours: d.displayTotalHours,
       hoursLogged: d.hoursLogged,
       underHours: d.underHours,
@@ -1058,6 +1064,10 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
                   <span className="h-2.5 w-2.5 rounded-xs bg-rose-500" />
                   <span className="text-slate-600 font-medium">Missed Log (6h Red)</span>
                 </div>
+                <div className="flex items-center gap-1">
+                  <span className="h-2.5 w-2.5 rounded-xs bg-amber-600 border border-amber-700/30" />
+                  <span className="text-amber-800 font-bold">Pre-Registration (Not Registered)</span>
+                </div>
               </div>
             </div>
 
@@ -1089,7 +1099,11 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
                                 <div className="font-extrabold text-slate-900 text-sm">{d.fullLabel}</div>
                                 <div className="text-[10px] text-slate-500 font-medium">{d.dateStr}</div>
                               </div>
-                              {isMissed ? (
+                              {d.isPreJoiningDay ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-black text-amber-900 border border-amber-300">
+                                  Pre-Registration (Not Registered)
+                                </span>
+                              ) : isMissed ? (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-black text-rose-700 border border-rose-300">
                                   <span className="h-1.5 w-1.5 rounded-full bg-rose-600 animate-pulse" />
                                   Missed Log
@@ -1278,6 +1292,13 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
                     stackId="a" 
                     radius={[4, 4, 0, 0]} 
                   />
+                  <Bar 
+                    dataKey="preJoinHours" 
+                    name="Pre-Registration (Not Registered)" 
+                    fill="#d97706" 
+                    stackId="a" 
+                    radius={[4, 4, 0, 0]} 
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1425,7 +1446,9 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
                   <tr 
                     key={day.dayLabel} 
                     className={`transition-colors ${
-                      isMissed
+                      isPreJoin
+                        ? 'bg-amber-50/50 hover:bg-amber-50/80 border-l-4 border-l-amber-600'
+                        : isMissed
                         ? 'bg-rose-50/40 hover:bg-rose-50/70 border-l-4 border-l-rose-500'
                         : isLeave
                         ? 'bg-purple-50/30 hover:bg-purple-50/60 border-l-4 border-l-purple-500'
@@ -1438,6 +1461,11 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
                     <td className="py-3 px-3">
                       <div className="font-bold text-slate-900 flex items-center gap-1.5">
                         <span>{day.dayLabel}</span>
+                        {isPreJoin && (
+                          <span className="text-[9px] font-black uppercase tracking-wider bg-amber-600 text-white px-2 py-0.5 rounded-md shadow-2xs">
+                            Not Registered
+                          </span>
+                        )}
                         {isMissed && (
                           <span className="text-[9px] font-black uppercase tracking-wider bg-rose-600 text-white px-1.5 py-0.2 rounded-full">
                             Missed
@@ -1459,7 +1487,14 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
 
                     {/* Hours Worked */}
                     <td className="py-3 px-3">
-                      {isMissed ? (
+                      {isPreJoin ? (
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium text-slate-400 text-sm">0.0 hrs</span>
+                          <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded-md border border-amber-300">
+                            Pre-Registration
+                          </span>
+                        </div>
+                      ) : isMissed ? (
                         <div className="flex items-center gap-1">
                           <span className="font-medium text-slate-400 text-sm">0.0 hrs</span>
                           <span className="text-[10px] font-black text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded-md border border-rose-300">
@@ -1473,7 +1508,7 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
                             {day.leaveType === 'UNPAID_LEAVE' ? 'LOP' : 'Shift Credited'}
                           </span>
                         </div>
-                      ) : isPreJoin || isNoLog ? (
+                      ) : isNoLog ? (
                         <span className="font-medium text-slate-400 text-sm">
                           0.0 hrs
                         </span>
@@ -1486,7 +1521,11 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
 
                     {/* Burnout / Overtime */}
                     <td className="py-3 px-3">
-                      {isMissed ? (
+                      {isPreJoin ? (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900 border border-amber-300">
+                          Pre-Registration
+                        </span>
+                      ) : isMissed ? (
                         <span className="inline-flex items-center gap-1 rounded-md bg-rose-100 px-2 py-0.5 text-xs font-black text-rose-800 border border-rose-300">
                           <AlertTriangle className="h-3 w-3 text-rose-600" />
                           Missed Log
@@ -1495,10 +1534,6 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
                         <span className="inline-flex items-center gap-1 rounded-md bg-purple-100 px-2 py-0.5 text-xs font-bold text-purple-800 border border-purple-300">
                           <Palmtree className="h-3 w-3 text-purple-600" />
                           {day.leaveType === 'CASUAL_LEAVE' ? 'Casual Leave' : day.leaveType === 'SICK_LEAVE' ? 'Sick Leave' : 'Unpaid Leave'}
-                        </span>
-                      ) : isPreJoin ? (
-                        <span className="rounded-md bg-slate-100 px-2 py-0.5 text-2xs font-medium text-slate-500">
-                          Pre-joining
                         </span>
                       ) : isNoLog ? (
                         <span className="rounded-md bg-slate-100 px-2 py-0.5 text-2xs font-medium text-slate-500">
