@@ -39,6 +39,7 @@ export interface RegisterUserData {
   managerName?: string;
   managerEmail?: string;
   managerSecurityPasscode?: string; // Mandatory when role === 'MANAGER'
+  allowOverwrite?: boolean; // When true, re-creates/overwrites existing record and re-syncs to Supabase
 }
 
 interface AuthContextType {
@@ -585,6 +586,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUserProfile(userProfileData);
       setIsDemoMode(false);
       setLoading(false);
+
+      // Re-sync user profile to Supabase on login (vital if Supabase data was cleared or needs updating)
+      try {
+        await upsertProfile(userProfileData);
+      } catch (supaSyncErr) {
+        console.info('[Supabase] Login profile re-sync notice:', supaSyncErr);
+      }
     } catch (err: any) {
       console.log('[Auth Login Error Handler] Caught error:', err?.message || err);
       setLoading(false);
@@ -667,23 +675,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (crossCheckErr?.message?.startsWith('ROLE_CONFLICT:')) throw crossCheckErr;
         }
 
-        // Now check if already registered in manager_credentials
-        try {
-          const mgrAccountsRaw = localStorage.getItem('nxtwave_manager_accounts');
-          if (mgrAccountsRaw) {
-            const mgrMap = JSON.parse(mgrAccountsRaw);
-            if (mgrMap[cleanEmail] || mgrMap[rawEmpId.toLowerCase()] || mgrMap[rawEmpId.toUpperCase()]) {
+        // Now check if already registered in manager_credentials (skip if user opted to allowOverwrite/re-sync)
+        if (!data.allowOverwrite) {
+          try {
+            const mgrAccountsRaw = localStorage.getItem('nxtwave_manager_accounts');
+            if (mgrAccountsRaw) {
+              const mgrMap = JSON.parse(mgrAccountsRaw);
+              if (mgrMap[cleanEmail] || mgrMap[rawEmpId.toLowerCase()] || mgrMap[rawEmpId.toUpperCase()]) {
+                throw new Error(`ACCOUNT_EXISTS: An account with this email ("${cleanEmail}") or Employee ID ("${rawEmpId}") already exists. You can directly sign in to your Manager account.`);
+              }
+            }
+
+            const mgrDocPromises = lookupKeys.map(k => getDoc(doc(db, 'manager_credentials', k)));
+            const mgrDocSnaps = await Promise.all(mgrDocPromises);
+            if (mgrDocSnaps.some(s => s.exists())) {
               throw new Error(`ACCOUNT_EXISTS: An account with this email ("${cleanEmail}") or Employee ID ("${rawEmpId}") already exists. You can directly sign in to your Manager account.`);
             }
+          } catch (dupMgrErr: any) {
+            if (dupMgrErr?.message?.startsWith('ACCOUNT_EXISTS:')) throw dupMgrErr;
           }
-
-          const mgrDocPromises = lookupKeys.map(k => getDoc(doc(db, 'manager_credentials', k)));
-          const mgrDocSnaps = await Promise.all(mgrDocPromises);
-          if (mgrDocSnaps.some(s => s.exists())) {
-            throw new Error(`ACCOUNT_EXISTS: An account with this email ("${cleanEmail}") or Employee ID ("${rawEmpId}") already exists. You can directly sign in to your Manager account.`);
-          }
-        } catch (dupMgrErr: any) {
-          if (dupMgrErr?.message?.startsWith('ACCOUNT_EXISTS:')) throw dupMgrErr;
         }
       } else {
         // A Trainer is attempting registration: Check manager_credentials first!
@@ -715,29 +725,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (crossCheckErr?.message?.startsWith('ROLE_CONFLICT:')) throw crossCheckErr;
         }
 
-        // Now check if already registered in trainer_credentials
-        try {
-          const trainerAccountsRaw = localStorage.getItem('nxtwave_trainer_accounts');
-          if (trainerAccountsRaw) {
-            const trainerMap = JSON.parse(trainerAccountsRaw);
-            if (trainerMap[cleanEmail] || trainerMap[rawEmpId.toLowerCase()] || trainerMap[rawEmpId.toUpperCase()]) {
+        // Now check if already registered in trainer_credentials (skip if user opted to allowOverwrite/re-sync)
+        if (!data.allowOverwrite) {
+          try {
+            const trainerAccountsRaw = localStorage.getItem('nxtwave_trainer_accounts');
+            if (trainerAccountsRaw) {
+              const trainerMap = JSON.parse(trainerAccountsRaw);
+              if (trainerMap[cleanEmail] || trainerMap[rawEmpId.toLowerCase()] || trainerMap[rawEmpId.toUpperCase()]) {
+                throw new Error(`ACCOUNT_EXISTS: An account with this email ("${cleanEmail}") or Employee ID ("${rawEmpId}") already exists. You can directly sign in to your Instructor account.`);
+              }
+            }
+
+            const trainerDocPromises = lookupKeys.map(k => getDoc(doc(db, 'trainer_credentials', k)));
+            const trainerDocSnaps = await Promise.all(trainerDocPromises);
+            if (trainerDocSnaps.some(s => s.exists())) {
               throw new Error(`ACCOUNT_EXISTS: An account with this email ("${cleanEmail}") or Employee ID ("${rawEmpId}") already exists. You can directly sign in to your Instructor account.`);
             }
+          } catch (dupTrainerErr: any) {
+            if (dupTrainerErr?.message?.startsWith('ACCOUNT_EXISTS:')) throw dupTrainerErr;
           }
-
-          const trainerDocPromises = lookupKeys.map(k => getDoc(doc(db, 'trainer_credentials', k)));
-          const trainerDocSnaps = await Promise.all(trainerDocPromises);
-          if (trainerDocSnaps.some(s => s.exists())) {
-            throw new Error(`ACCOUNT_EXISTS: An account with this email ("${cleanEmail}") or Employee ID ("${rawEmpId}") already exists. You can directly sign in to your Instructor account.`);
-          }
-        } catch (dupTrainerErr: any) {
-          if (dupTrainerErr?.message?.startsWith('ACCOUNT_EXISTS:')) throw dupTrainerErr;
         }
       }
 
-      // Deterministic UID
-      const sanitizedEmailKey = cleanEmail.replace(/[^a-zA-Z0-9]/g, '-');
-      let uid = `usr-${sanitizedEmailKey}-${Date.now().toString().slice(-4)}`;
+      // If overwriting/re-syncing, check for existing UID in Firestore first to preserve entity linkage
+      let uid: string | null = null;
+      if (data.allowOverwrite) {
+        try {
+          const targetTable = isMgr ? 'manager_credentials' : 'trainer_credentials';
+          const credSnap = await getDoc(doc(db, targetTable, cleanEmail));
+          if (credSnap.exists() && credSnap.data()?.uid) {
+            uid = credSnap.data().uid;
+          } else {
+            const usersRef = collection(db, 'users');
+            const q = query(usersRef, where('companyEmail', '==', cleanEmail));
+            const uSnap = await getDocs(q);
+            if (!uSnap.empty) {
+              uid = uSnap.docs[0].id;
+            }
+          }
+        } catch (lookupUidErr) {
+          console.info('Existing UID lookup notice:', lookupUidErr);
+        }
+      }
+
+      if (!uid) {
+        const sanitizedEmailKey = cleanEmail.replace(/[^a-zA-Z0-9]/g, '-');
+        uid = `usr-${sanitizedEmailKey}-${Date.now().toString().slice(-4)}`;
+      }
 
       // Attempt Firebase Auth user creation gracefully
       if (cleanPass) {
@@ -746,9 +780,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           uid = userCredential.user.uid;
         } catch (authErr: any) {
           if (authErr?.code === 'auth/email-already-in-use') {
-            throw new Error(`ACCOUNT_EXISTS: An account with the email "${cleanEmail}" already exists. You can directly sign in; there is no need to create an account.`);
+            if (!data.allowOverwrite) {
+              throw new Error(`ACCOUNT_EXISTS: An account with the email "${cleanEmail}" already exists. You can directly sign in; there is no need to create an account.`);
+            }
+            console.info('Re-syncing existing Firebase Auth account for:', cleanEmail);
+            try {
+              const fbCred = await signInWithEmailAndPassword(auth, cleanEmail, cleanPass);
+              if (fbCred?.user?.uid) {
+                uid = fbCred.user.uid;
+              }
+            } catch {
+              // Password in Firebase Auth might differ, continuing with existing UID and updating Firestore & Supabase
+            }
+          } else {
+            console.warn('Firebase Auth provider fallback to Firestore permanent storage:', authErr?.message || authErr);
           }
-          console.warn('Firebase Auth provider fallback to Firestore permanent storage:', authErr?.message || authErr);
         }
       }
 

@@ -785,6 +785,82 @@ export const AuthPage: React.FC = () => {
     }
   };
 
+  // Handle Re-Register & Overwrite (re-syncs with Supabase, updates Firestore, and logs in)
+  const handleForceReRegister = async () => {
+    if (!accountAlreadyExists) return;
+    setIsSubmitting(true);
+    setErrorMessage(null);
+    setShowAccountExistsModal(false);
+    try {
+      const isMgrRole = accountAlreadyExists.role === 'MANAGER';
+      if (isMgrRole) {
+        const passcodeEntered = managerForm.managerSecurityPasscode.trim();
+        let cleanEmpId = managerForm.employeeId.trim().toUpperCase().replace(/[\s#-]/g, '');
+        if (!cleanEmpId.startsWith('NW')) {
+          cleanEmpId = `NW${cleanEmpId}`;
+        }
+        const deptTeamMap: Record<EnterpriseDepartment, { teamId: string; teamName: string }> = {
+          'Frontend': { teamId: 'team-frontend', teamName: 'Frontend Department' },
+          'Backend': { teamId: 'team-backend', teamName: 'Backend Department' },
+          'GenAI': { teamId: 'team-genai', teamName: 'GenAI Department' },
+        };
+        const deptConfig = deptTeamMap[managerForm.department] || deptTeamMap['GenAI'];
+        await registerUser({
+          fullName: managerForm.fullName.trim() || 'Manager',
+          companyEmail: managerForm.companyEmail.trim().toLowerCase(),
+          password: managerForm.password,
+          employeeId: cleanEmpId,
+          role: 'MANAGER',
+          department: managerForm.department,
+          teamId: deptConfig.teamId,
+          teamName: `${managerForm.department} Department`,
+          designation: managerForm.designation.trim() || 'Capability Manager',
+          location: '',
+          subject: managerForm.subject.trim(),
+          managerId: 'exec-global-00',
+          managerName: 'Executive Leadership',
+          managerSecurityPasscode: passcodeEntered,
+          allowOverwrite: true,
+        });
+        setSuccessMessage('Manager account re-created & re-synchronized with Supabase! Accessing workspace...');
+      } else {
+        let cleanEmpId = trainerForm.employeeId.trim().toUpperCase().replace(/[\s#-]/g, '');
+        if (!cleanEmpId.startsWith('NW')) {
+          cleanEmpId = `NW${cleanEmpId}`;
+        }
+        const deptTeamMap: Record<EnterpriseDepartment, { teamId: string; teamName: string }> = {
+          'Frontend': { teamId: 'team-frontend', teamName: 'Frontend Department' },
+          'Backend': { teamId: 'team-backend', teamName: 'Backend Department' },
+          'GenAI': { teamId: 'team-genai', teamName: 'GenAI Department' },
+        };
+        const deptConfig = deptTeamMap[trainerForm.department] || deptTeamMap['GenAI'];
+        await registerUser({
+          fullName: trainerForm.fullName.trim() || 'Instructor',
+          companyEmail: trainerForm.companyEmail.trim().toLowerCase(),
+          password: trainerForm.password,
+          employeeId: cleanEmpId,
+          role: 'TRAINER',
+          department: trainerForm.department,
+          teamId: deptConfig.teamId,
+          teamName: deptConfig.teamName,
+          designation: trainerForm.designation.trim() || 'Technical Trainer',
+          location: trainerForm.location.trim(),
+          subject: trainerForm.subject.trim(),
+          managerId: (trainerForm.managerId || '').trim() || undefined,
+          managerName: (trainerForm.managerName || '').trim(),
+          managerEmail: (trainerForm.managerEmail || '').trim() || undefined,
+          allowOverwrite: true,
+        });
+        setSuccessMessage('Instructor account re-created & re-synchronized with Supabase! Entering workspace...');
+      }
+    } catch (err: any) {
+      console.warn('Re-registration error:', err);
+      setErrorMessage(err?.message || 'Failed to re-create account. Please verify your details or reset your password.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-sky-100/60 via-blue-50/40 to-slate-50 text-slate-800 flex flex-col justify-between selection:bg-sky-500 selection:text-white">
       {/* Top Header */}
@@ -2514,7 +2590,7 @@ export const AuthPage: React.FC = () => {
             </h3>
 
             <p className="text-xs text-slate-600 mt-2 leading-relaxed max-w-xs">
-              An account with these credentials is already registered in the system. You can directly sign in; there is no need to create an account.
+              This account already exists in the central Firebase and local system registry (even if Supabase database records were recently cleared).
             </p>
 
             {accountAlreadyExists.emailOrId && (
@@ -2524,8 +2600,19 @@ export const AuthPage: React.FC = () => {
               </div>
             )}
 
-            {/* Actions */}
+            {/* Actions: Re-create & Sync, Sign In Directly, Reset Password */}
             <div className="w-full mt-6 space-y-2.5">
+              <button
+                type="button"
+                id="account-exists-modal-recreate-btn"
+                onClick={handleForceReRegister}
+                disabled={isSubmitting}
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-md shadow-sky-600/20 transition-all cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${isSubmitting ? 'animate-spin' : ''}`} />
+                <span>Re-create & Sync Account to Supabase</span>
+              </button>
+
               <button
                 type="button"
                 id="account-exists-modal-signin-btn"
@@ -2543,9 +2630,9 @@ export const AuthPage: React.FC = () => {
                     if (passInput) passInput.focus();
                   }, 100);
                 }}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition-all cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
               >
-                <span>Sign In Directly</span>
+                <span>Sign In with Existing Password</span>
                 <ArrowRight className="h-4 w-4" />
               </button>
 
