@@ -617,12 +617,42 @@ export const DailyWorkView: React.FC = () => {
     return myUpdates.find(u => (u.date || '').split('T')[0] === todayStr) || null;
   }, [myUpdates, todayStr]);
 
-  // Detect duplicate conflict if user changes date in modal to another date with an existing log
-  const duplicateConflict = useMemo(() => {
+  // Detect if an existing log exists for the currently selected date
+  const existingLogForDate = useMemo(() => {
     if (!formData.date) return null;
     const targetDate = formData.date.split('T')[0];
-    return myUpdates.find(u => (u.date || '').split('T')[0] === targetDate && u.id !== editingUpdateId) || null;
-  }, [formData.date, myUpdates, editingUpdateId]);
+    return myUpdates.find(u => (u.date || '').split('T')[0] === targetDate) || null;
+  }, [formData.date, myUpdates]);
+
+  // Unified date change handler that automatically links existing logs for editing
+  const handleDateChange = (val: string) => {
+    if (userRegDateStr && val < userRegDateStr) {
+      addToast({
+        title: 'Pre-Registration Date',
+        message: `Attendance can only be logged from your account registration date (${userRegDateStr}) onwards.`,
+        type: 'warning',
+        duration: 4000
+      });
+      return;
+    }
+    if (val > todayStr) {
+      addToast({
+        title: 'Future Date',
+        message: 'Cannot log attendance for future dates.',
+        type: 'warning',
+        duration: 4000
+      });
+      return;
+    }
+
+    const existing = myUpdates.find(u => (u.date || '').split('T')[0] === val);
+    if (existing) {
+      setEditingUpdateId(existing.id);
+    } else {
+      setEditingUpdateId(null);
+    }
+    setFormData(prev => ({ ...prev, date: val }));
+  };
 
   // Open modal in Edit Mode for a specific update
   const openEditModal = (update: DailyUpdate) => {
@@ -1474,16 +1504,6 @@ export const DailyWorkView: React.FC = () => {
       addToast({
         title: 'Future Date Not Allowed',
         message: 'Attendance and daily work cannot be logged for future dates.',
-        type: 'error',
-        duration: 5000
-      });
-      return;
-    }
-
-    if (duplicateConflict) {
-      addToast({
-        title: 'Duplicate Submission Prevented',
-        message: `A work log for ${formData.date} already exists. A trainee is allowed exactly 1 work log per day. Please edit the existing entry instead.`,
         type: 'error',
         duration: 5000
       });
@@ -3231,7 +3251,7 @@ export const DailyWorkView: React.FC = () => {
           setSelectedDetailUpdate(null);
           setFormData(getInitialFormData(todayStr));
         }}
-        title={editingUpdateId ? `Edit Daily Work Log (${formData.date})` : 'Daily Work Log'}
+        title={(editingUpdateId || existingLogForDate) ? `Edit Daily Work Log (${formData.date})` : 'Daily Work Log'}
         subtitle="Record your daily classes, mentoring sessions, and work hours."
         maxWidth="2xl"
       >
@@ -3247,7 +3267,7 @@ export const DailyWorkView: React.FC = () => {
                 <div className="flex items-center gap-1 text-[10px]">
                   <button
                     type="button"
-                    onClick={() => setFormData({ ...formData, date: todayStr })}
+                    onClick={() => handleDateChange(todayStr)}
                     className={`px-1.5 py-0.5 rounded-md font-bold transition-colors cursor-pointer ${
                       formData.date === todayStr ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
@@ -3262,7 +3282,7 @@ export const DailyWorkView: React.FC = () => {
                     return (
                       <button
                         type="button"
-                        onClick={() => setFormData({ ...formData, date: yStr })}
+                        onClick={() => handleDateChange(yStr)}
                         className={`px-1.5 py-0.5 rounded-md font-bold transition-colors cursor-pointer ${
                           formData.date === yStr ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
@@ -3279,7 +3299,7 @@ export const DailyWorkView: React.FC = () => {
                     return (
                       <button
                         type="button"
-                        onClick={() => setFormData({ ...formData, date: dStr })}
+                        onClick={() => handleDateChange(dStr)}
                         className={`px-1.5 py-0.5 rounded-md font-bold transition-colors cursor-pointer ${
                           formData.date === dStr ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
@@ -3297,33 +3317,8 @@ export const DailyWorkView: React.FC = () => {
                 value={formData.date}
                 min={minAllowedDate}
                 max={todayStr}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (userRegDateStr && val < userRegDateStr) {
-                    addToast({
-                      title: 'Pre-Registration Date',
-                      message: `Attendance can only be logged from your account registration date (${userRegDateStr}) onwards.`,
-                      type: 'warning',
-                      duration: 4000
-                    });
-                    return;
-                  }
-                  if (val > todayStr) {
-                    addToast({
-                      title: 'Future Date',
-                      message: 'Cannot log attendance for future dates.',
-                      type: 'warning',
-                      duration: 4000
-                    });
-                    return;
-                  }
-                  setFormData({ ...formData, date: val });
-                }}
-                className={`w-full rounded-xl border p-2.5 text-xs text-slate-900 focus:bg-white focus:outline-hidden ${
-                  duplicateConflict 
-                    ? 'border-rose-300 bg-rose-50/50 focus:border-rose-500' 
-                    : 'border-slate-200 bg-slate-50/40 focus:border-sky-500'
-                }`}
+                onChange={(e) => handleDateChange(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/40 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-sky-500 focus:outline-hidden"
               />
               {userRegDateStr && (
                 <p className="text-[10px] text-slate-500 mt-1">
@@ -3495,26 +3490,28 @@ export const DailyWorkView: React.FC = () => {
                 </div>
               )}
 
-              {/* Duplicate Submission Warning Banner */}
-              {duplicateConflict && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50/80 p-3 flex items-start gap-2.5">
-                  <AlertTriangle className="h-4.5 w-4.5 text-rose-600 shrink-0 mt-0.5" />
-                  <div className="text-xs space-y-1">
-                    <p className="font-semibold text-rose-900">
-                      A work log already exists for {formData.date}
-                    </p>
-                    <p className="text-rose-700">
-                      You can edit the existing log instead of submitting a duplicate entry.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => openEditModal(duplicateConflict)}
-                      className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-rose-800 hover:underline cursor-pointer"
-                    >
-                      <Pencil className="h-3 w-3" />
-                      <span>Load and edit existing log</span>
-                    </button>
+              {/* Existing Log Information Banner */}
+              {existingLogForDate && (
+                <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-3 flex items-start justify-between gap-2.5">
+                  <div className="flex items-start gap-2.5">
+                    <CheckCircle2 className="h-4 w-4 text-sky-600 shrink-0 mt-0.5" />
+                    <div className="text-xs space-y-0.5">
+                      <p className="font-semibold text-sky-950">
+                        Editing work log for {formData.date}
+                      </p>
+                      <p className="text-slate-600 text-[11px]">
+                        A record already exists for this date. Adjust your hours, sessions, or tasks below and click <strong>Update Workload</strong> to save changes.
+                      </p>
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(existingLogForDate)}
+                    className="shrink-0 text-[11px] font-bold text-sky-800 hover:text-sky-950 hover:bg-sky-200/70 bg-sky-100 px-2.5 py-1 rounded-lg border border-sky-200 transition-colors cursor-pointer inline-flex items-center gap-1"
+                  >
+                    <Pencil className="h-3 w-3" />
+                    <span>Reload Saved</span>
+                  </button>
                 </div>
               )}
 
@@ -3977,12 +3974,10 @@ export const DailyWorkView: React.FC = () => {
               </button>
               <button
                 type="submit"
-                disabled={saving || !!duplicateConflict}
+                disabled={saving}
                 id="submit-daily-work-update-btn"
                 className={`rounded-xl px-5 py-2 text-xs font-semibold text-white shadow-xs transition-colors cursor-pointer flex items-center gap-2 ${
-                  duplicateConflict
-                    ? 'bg-rose-400 cursor-not-allowed opacity-60'
-                    : editingUpdateId
+                  (editingUpdateId || existingLogForDate)
                     ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/20'
                     : 'bg-sky-600 hover:bg-sky-500 shadow-sky-600/20'
                 }`}
@@ -3991,8 +3986,8 @@ export const DailyWorkView: React.FC = () => {
                 <span>
                   {saving
                     ? 'Saving Workload...'
-                    : duplicateConflict
-                    ? 'Duplicate Date'
+                    : (editingUpdateId || existingLogForDate)
+                    ? 'Update Workload'
                     : 'Save Workload'}
                 </span>
               </button>
