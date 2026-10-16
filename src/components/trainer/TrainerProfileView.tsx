@@ -161,9 +161,9 @@ export const TrainerProfileView: React.FC = () => {
         instructorName: userProfile.fullName,
         instructorEmail: userProfile.companyEmail,
         instructorEmployeeId: userProfile.employeeId,
-        currentManagerId: userProfile.managerId || 'mgr-enterprise-01',
-        currentManagerName: userProfile.managerName || 'Sarah Jenkins',
-        currentManagerEmail: userProfile.managerEmail || 'manager@enterprise.com',
+        currentManagerId: userProfile.managerId || '',
+        currentManagerName: userProfile.managerName || 'Reporting Manager',
+        currentManagerEmail: userProfile.managerEmail || '',
         requestedManagerId: targetManager.uid,
         requestedManagerName: targetManager.fullName,
         requestedManagerEmail: targetManager.companyEmail,
@@ -425,10 +425,10 @@ export const TrainerProfileView: React.FC = () => {
               <div className="flex items-center justify-between gap-2 pt-0.5">
                 <div>
                   <p className="font-bold text-slate-900 text-sm">
-                    {userProfile?.managerName || 'Sarah Jenkins'}
+                    {userProfile?.managerName || 'Reporting Manager'}
                   </p>
                   <p className="text-[11px] text-slate-500">
-                    {userProfile?.managerEmail || 'manager@enterprise.com'}
+                    {userProfile?.managerEmail || 'No manager email assigned'}
                   </p>
                 </div>
                 <button
@@ -672,10 +672,10 @@ export const TrainerProfileView: React.FC = () => {
             <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-lg border border-sky-100">
               <div>
                 <p className="font-bold text-slate-900 text-xs">
-                  {userProfile?.managerName || 'Sarah Jenkins'}
+                  {userProfile?.managerName || 'Reporting Manager'}
                 </p>
                 <p className="text-[11px] text-slate-500">
-                  {userProfile?.managerEmail || 'manager@enterprise.com'}
+                  {userProfile?.managerEmail || 'No manager email assigned'}
                 </p>
               </div>
               <button
@@ -829,7 +829,7 @@ export const TrainerProfileView: React.FC = () => {
               <span>Reporting Manager Mapping is Locked</span>
             </div>
             <p className="text-[11px] text-slate-600">
-              Currently assigned to <strong>{userProfile?.managerName || 'Sarah Jenkins'}</strong> ({userProfile?.managerEmail || 'manager@enterprise.com'}).
+              Currently assigned to <strong>{userProfile?.managerName || 'Reporting Manager'}</strong> {userProfile?.managerEmail ? `(${userProfile.managerEmail})` : ''}.
               To transfer to a different manager, submit a <strong>Manager Change Request</strong> from your dashboard or profile screen.
             </p>
           </div>
@@ -900,10 +900,10 @@ export const TrainerProfileView: React.FC = () => {
                   Current Assigned Manager
                 </span>
                 <p className="font-extrabold text-slate-900 text-sm">
-                  {userProfile?.managerName || 'Sarah Jenkins'}
+                  {userProfile?.managerName || 'Reporting Manager'}
                 </p>
                 <p className="text-[11px] text-slate-500">
-                  {userProfile?.managerEmail || 'sarah.jenkins@enterprise.com'}
+                  {userProfile?.managerEmail || ''}
                 </p>
                 <p className="text-[10px] text-slate-400 mt-1">
                   Your change request will be routed to this manager for formal approval.

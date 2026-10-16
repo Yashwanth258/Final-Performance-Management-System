@@ -19,7 +19,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { UserProfile, UserRole } from '../types';
-import { seedEnterpriseDatabaseIfEmpty, SEED_TRAINERS, DEFAULT_MANAGER_SECURITY_PASSCODE } from '../lib/seedDatabase';
+import { seedEnterpriseDatabaseIfEmpty, DEFAULT_MANAGER_SECURITY_PASSCODE } from '../lib/seedDatabase';
 import { cleanFirestoreData } from '../lib/firestoreErrors';
 import { upsertProfile, lookupCredentialsSupa, saveCredentialSupa } from '../lib/supabaseDb';
 
@@ -79,24 +79,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(false);
   const [isDemoMode, setIsDemoMode] = useState(false);
 
-  // Default demo manager profile
-  const DEMO_MANAGER_PROFILE: UserProfile = {
-    uid: 'mgr-enterprise-01',
-    employeeId: 'MGR-7701',
-    fullName: 'Sarah Jenkins',
-    companyEmail: 'sarah.jenkins@enterprise.com',
-    role: 'MANAGER',
-    teamId: 'team-cloud-ai',
-    teamName: 'Enterprise Training & Talent Org',
-    managerId: 'exec-global-00',
-    managerName: 'Executive Leadership',
-    designation: 'VP of Technical Enablement & Training',
-    location: 'San Francisco, CA (HQ)',
-    subject: 'Enterprise Curriculum Leadership',
-    isActive: true,
-    createdAt: '2025-01-10T08:00:00.000Z',
-    updatedAt: new Date().toISOString(),
-  };
 
   useEffect(() => {
     // Seed initial enterprise records if empty
@@ -184,10 +166,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 fullName: user.displayName || user.email.split('@')[0],
                 companyEmail: cleanEmail,
                 role: 'TRAINER',
-                teamId: 'team-cloud-ai',
-                teamName: 'Cloud & AI Engineering',
-                managerId: 'mgr-enterprise-01',
-                managerName: 'Sarah Jenkins',
+                teamId: 'team-genai',
+                teamName: 'GenAI Department',
+                managerId: '',
+                managerName: 'Reporting Manager',
                 designation: 'Technical Trainer',
                 location: 'San Francisco, CA',
                 subject: 'Engineering Enablement',
@@ -294,81 +276,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('[Auth Login Step 1A Warning] Local account cache lookup notice:', cacheErr);
       }
 
-      // 1B. Check Static Seed Trainers & Demo Manager Profiles
-      if (!credData && !foundUid) {
-        const isDemoManager =
-          lowerInput === 'sarah.jenkins@enterprise.com' ||
-          lowerInput === 'manager@enterprise.com' ||
-          upperInput === 'MGR-7701' ||
-          upperInput === 'NW2001' ||
-          lowerInput === 'nw2001';
-
-        const matchedTrainer = SEED_TRAINERS.find(
-          t => t.companyEmail.toLowerCase() === lowerInput || t.employeeId.toUpperCase() === upperInput
-        );
-
-        if (portalRole === 'MANAGER') {
-          if (matchedTrainer) {
-            throw new Error('ROLE_RESTRICTION: This account is registered as an Instructor. Please sign in through the Instructor Portal, or register as an Instructor.');
-          }
-          if (isDemoManager) {
-            foundUid = DEMO_MANAGER_PROFILE.uid;
-            userProfileData = DEMO_MANAGER_PROFILE;
-            detectedRole = 'MANAGER';
-            credData = {
-              uid: DEMO_MANAGER_PROFILE.uid,
-              email: DEMO_MANAGER_PROFILE.companyEmail,
-              employeeId: DEMO_MANAGER_PROFILE.employeeId,
-              password: 'password',
-              role: 'MANAGER',
-              profile: DEMO_MANAGER_PROFILE,
-            };
-          }
-        } else if (portalRole === 'TRAINER' || portalRole === 'TRAINEE') {
-          if (isDemoManager) {
-            throw new Error('ROLE_RESTRICTION: This account is registered as a Manager. Please switch to the Manager Sign In portal to log in.');
-          }
-          if (matchedTrainer) {
-            foundUid = matchedTrainer.uid;
-            userProfileData = matchedTrainer;
-            detectedRole = 'TRAINER';
-            credData = {
-              uid: matchedTrainer.uid,
-              email: matchedTrainer.companyEmail,
-              employeeId: matchedTrainer.employeeId,
-              password: 'password',
-              role: 'TRAINER',
-              profile: matchedTrainer,
-            };
-          }
-        } else {
-          if (isDemoManager) {
-            foundUid = DEMO_MANAGER_PROFILE.uid;
-            userProfileData = DEMO_MANAGER_PROFILE;
-            detectedRole = 'MANAGER';
-            credData = {
-              uid: DEMO_MANAGER_PROFILE.uid,
-              email: DEMO_MANAGER_PROFILE.companyEmail,
-              employeeId: DEMO_MANAGER_PROFILE.employeeId,
-              password: 'password',
-              role: 'MANAGER',
-              profile: DEMO_MANAGER_PROFILE,
-            };
-          } else if (matchedTrainer) {
-            foundUid = matchedTrainer.uid;
-            userProfileData = matchedTrainer;
-            detectedRole = 'TRAINER';
-            credData = {
-              uid: matchedTrainer.uid,
-              email: matchedTrainer.companyEmail,
-              employeeId: matchedTrainer.employeeId,
-              password: 'password',
-              role: 'TRAINER',
-              profile: matchedTrainer,
-            };
-          }
-        }
-      }
+      // 1B. Fast-path credentials check: strictly rely on registered database accounts
 
       // 1C. Verify password against fast-path credentials record if loaded
       if (credData && credData.password !== undefined) {
@@ -632,8 +540,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           department: 'GenAI',
           teamId: isMgr ? 'team-genai' : 'team-genai',
           teamName: isMgr ? 'GenAI Department' : 'GenAI Department',
-          managerId: isMgr ? 'exec-global-00' : 'mgr-enterprise-01',
-          managerName: isMgr ? 'Executive Leadership' : 'Sarah Jenkins',
+          managerId: isMgr ? 'exec-global-00' : '',
+          managerName: isMgr ? 'Executive Leadership' : 'Reporting Manager',
           designation: isMgr ? 'Training Manager' : 'Technical Trainer',
           location: 'San Francisco, CA',
           subject: 'Generative AI & LLM Systems',
@@ -741,14 +649,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
 
-          // Check static seed trainers
-          const matchedSeedTrainer = SEED_TRAINERS.find(
-            t => t.companyEmail.toLowerCase() === cleanEmail || t.employeeId.toUpperCase() === rawEmpId
-          );
-          if (matchedSeedTrainer) {
-            throw new Error('ROLE_CONFLICT: This account is already registered as an Instructor. Please sign in or register through the Instructor Portal.');
-          }
-
           // Query Firestore trainer_credentials table
           const trainerDocPromises = lookupKeys.map(k => getDoc(doc(db, 'trainer_credentials', k)));
           const trainerDocSnaps = await Promise.all(trainerDocPromises);
@@ -797,16 +697,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
 
-          // Check static demo manager
-          if (
-            cleanEmail === 'sarah.jenkins@enterprise.com' ||
-            cleanEmail === 'manager@enterprise.com' ||
-            rawEmpId === 'MGR-7701' ||
-            rawEmpId === 'NW2001'
-          ) {
-            throw new Error('ROLE_CONFLICT: This account is already registered as a Manager. Please sign in through the Manager Portal.');
-          }
-
           // Query Firestore manager_credentials table
           const mgrDocPromises = lookupKeys.map(k => getDoc(doc(db, 'manager_credentials', k)));
           const mgrDocSnaps = await Promise.all(mgrDocPromises);
@@ -833,13 +723,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (trainerMap[cleanEmail] || trainerMap[rawEmpId.toLowerCase()] || trainerMap[rawEmpId.toUpperCase()]) {
               throw new Error(`ACCOUNT_EXISTS: An account with this email ("${cleanEmail}") or Employee ID ("${rawEmpId}") already exists. You can directly sign in to your Instructor account.`);
             }
-          }
-
-          const matchedSeedTrainer = SEED_TRAINERS.find(
-            t => t.companyEmail.toLowerCase() === cleanEmail || t.employeeId.toUpperCase() === rawEmpId
-          );
-          if (matchedSeedTrainer) {
-            throw new Error(`ACCOUNT_EXISTS: An account with this email ("${cleanEmail}") or Employee ID ("${rawEmpId}") already exists. You can directly sign in to your Instructor account.`);
           }
 
           const trainerDocPromises = lookupKeys.map(k => getDoc(doc(db, 'trainer_credentials', k)));
@@ -1087,24 +970,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      // Check seed trainers fallback
-      if (!foundProfile) {
-        const matched = SEED_TRAINERS.find(
-          t => t.companyEmail.toLowerCase() === lowerInput || t.employeeId.toUpperCase() === upperInput
-        );
-        if (matched) {
-          foundProfile = matched;
-          emailToSend = matched.companyEmail;
-        } else if (
-          lowerInput === 'sarah.jenkins@enterprise.com' ||
-          lowerInput === 'manager@enterprise.com' ||
-          upperInput === 'MGR-7701' ||
-          upperInput === 'NW2001'
-        ) {
-          foundProfile = DEMO_MANAGER_PROFILE;
-          emailToSend = DEMO_MANAGER_PROFILE.companyEmail;
-        }
-      }
+      // Strictly verify against database records
     } catch (lookupErr) {
       console.warn('Account lookup during reset notice:', lookupErr);
     }
@@ -1183,18 +1049,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      if (!foundUid) {
-        const matched = SEED_TRAINERS.find(
-          t => t.companyEmail.toLowerCase() === lowerInput || t.employeeId.toUpperCase() === upperInput
-        );
-        if (matched) {
-          foundUid = matched.uid;
-          email = matched.companyEmail;
-          empId = matched.employeeId;
-          existingProfile = matched;
-          isMgr = false;
-        }
-      }
 
       if (!foundUid) {
         foundUid = `usr_${Date.now()}`;
@@ -1356,21 +1210,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const quickDemoLogin = (targetRole: 'MANAGER' | 'TRAINER' | 'TRAINEE') => {
-    setIsDemoMode(true);
-    let selectedProfile: UserProfile;
-
-    if (targetRole === 'MANAGER') {
-      selectedProfile = DEMO_MANAGER_PROFILE;
-    } else if (targetRole === 'TRAINEE') {
-      selectedProfile = SEED_TRAINERS.find(t => t.employeeId === 'EMP-1089') || SEED_TRAINERS[4] || SEED_TRAINERS[0];
-    } else {
-      selectedProfile = SEED_TRAINERS[0];
-    }
-
-    localStorage.setItem(LOCAL_STORAGE_USER_KEY, selectedProfile.uid);
-    localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(selectedProfile));
-    setUserProfile(selectedProfile);
+  const quickDemoLogin = (_targetRole: 'MANAGER' | 'TRAINER' | 'TRAINEE') => {
+    setIsDemoMode(false);
   };
 
   const role: UserRole | null = userProfile?.role || null;

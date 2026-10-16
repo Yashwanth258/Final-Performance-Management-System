@@ -140,6 +140,31 @@ export const AuthPage: React.FC = () => {
 
   // Real-time synchronization of registered managers
   useEffect(() => {
+    const isDummyManagerAccount = (email?: string, name?: string, empId?: string): boolean => {
+      const em = (email || '').toLowerCase().trim();
+      const nm = (name || '').toLowerCase().trim();
+      const id = (empId || '').toUpperCase().trim();
+      return (
+        em.includes('enterprise.com') ||
+        em.includes('sarah') ||
+        em.includes('chandana') ||
+        em.includes('nitin') ||
+        em.includes('yashwan') ||
+        em.includes('vikram') ||
+        nm.includes('sarah') ||
+        nm.includes('chandana') ||
+        nm.includes('nitin') ||
+        nm.includes('north yashwan') ||
+        nm.includes('vikram rao') ||
+        id === 'MGR-7701' ||
+        id === 'NW2001' ||
+        id === 'NW2008' ||
+        id === 'NW2018' ||
+        id === 'NW2015' ||
+        id === 'NW2022'
+      );
+    };
+
     // Helper to merge and deduplicate managers strictly from manager accounts
     const loadCachedManagers = (): ManagerDirectoryItem[] => {
       const items: ManagerDirectoryItem[] = [];
@@ -150,12 +175,15 @@ export const AuthPage: React.FC = () => {
           Object.values(accounts).forEach((acc: any) => {
             const p = acc?.profile || acc;
             const isManagerRole = (acc?.role === 'MANAGER' || p?.role === 'MANAGER') && acc?.role !== 'TRAINER' && p?.role !== 'TRAINER';
-            if (acc && isManagerRole && (p?.companyEmail || acc?.email)) {
+            const email = (p?.companyEmail || acc?.email || '').toLowerCase().trim();
+            const fullName = p?.fullName || acc?.fullName || '';
+            const empId = p?.employeeId || acc?.employeeId || '';
+            if (acc && isManagerRole && email && !isDummyManagerAccount(email, fullName, empId)) {
               items.push({
                 uid: acc.uid || p.uid || '',
-                fullName: p.fullName || acc.fullName || 'Manager',
-                companyEmail: (p.companyEmail || acc.email || '').toLowerCase(),
-                employeeId: p.employeeId || acc.employeeId,
+                fullName: fullName || 'Manager',
+                companyEmail: email,
+                employeeId: empId,
                 department: p.department || acc.department || 'GenAI',
                 designation: p.designation || 'Capability Manager',
                 location: p.location || '',
@@ -171,12 +199,15 @@ export const AuthPage: React.FC = () => {
           Object.values(customAccounts).forEach((acc: any) => {
             const p = acc?.profile || acc;
             const isManagerRole = (acc?.role === 'MANAGER' || p?.role === 'MANAGER') && acc?.role !== 'TRAINER' && p?.role !== 'TRAINER';
-            if (acc && isManagerRole && (p?.companyEmail || acc?.email)) {
+            const email = (p?.companyEmail || acc?.email || '').toLowerCase().trim();
+            const fullName = p?.fullName || acc?.fullName || '';
+            const empId = p?.employeeId || acc?.employeeId || '';
+            if (acc && isManagerRole && email && !isDummyManagerAccount(email, fullName, empId)) {
               items.push({
                 uid: acc.uid || p.uid || '',
-                fullName: p.fullName || acc.fullName || 'Manager',
-                companyEmail: (p.companyEmail || acc.email || '').toLowerCase(),
-                employeeId: p.employeeId || acc.employeeId,
+                fullName: fullName || 'Manager',
+                companyEmail: email,
+                employeeId: empId,
                 department: p.department || acc.department || 'GenAI',
                 designation: p.designation || 'Capability Manager',
                 location: p.location || '',
@@ -191,58 +222,8 @@ export const AuthPage: React.FC = () => {
       return items;
     };
 
-    const DEFAULT_KNOWN_MANAGERS: ManagerDirectoryItem[] = [
-      {
-        uid: 'mgr-yash-01',
-        fullName: 'North Yashwan',
-        companyEmail: 'yash@enterprise.com',
-        employeeId: 'NW2015',
-        department: 'Frontend',
-        designation: 'Capability Manager',
-        location: 'Chennai',
-        teamName: 'Frontend Department',
-      },
-      {
-        uid: 'mgr-chandana-01',
-        fullName: 'Chandana',
-        companyEmail: 'chandana@enterprise.com',
-        employeeId: 'NW2008',
-        department: 'Frontend',
-        designation: 'Capability Manager',
-        location: 'Chennai',
-        teamName: 'Frontend Department',
-      },
-      {
-        uid: 'mgr-nitin-01',
-        fullName: 'Nitin',
-        companyEmail: 'nitin@enterprise.com',
-        employeeId: 'NW2018',
-        department: 'Frontend',
-        designation: 'Capability Manager',
-        location: 'Chennai',
-        teamName: 'Frontend Department',
-      },
-      {
-        uid: 'mgr-vikram-01',
-        fullName: 'Vikram Rao',
-        companyEmail: 'vikram.rao@enterprise.com',
-        employeeId: 'NW2022',
-        department: 'Backend',
-        designation: 'Capability Manager',
-        location: 'Hyderabad Campus',
-        teamName: 'Backend Department',
-      },
-      {
-        uid: 'mgr-enterprise-01',
-        fullName: 'Sarah Jenkins',
-        companyEmail: 'sarah.jenkins@enterprise.com',
-        employeeId: 'NW2001',
-        department: 'GenAI',
-        designation: 'Capability Manager',
-        location: 'San Francisco, CA',
-        teamName: 'GenAI Department',
-      },
-    ];
+    // No hardcoded fake dummy managers — only real managers registered in the system
+    const DEFAULT_KNOWN_MANAGERS: ManagerDirectoryItem[] = [];
 
     let userManagerDocs: ManagerDirectoryItem[] = [];
     let credManagerDocs: ManagerDirectoryItem[] = [];
@@ -250,25 +231,26 @@ export const AuthPage: React.FC = () => {
     const syncAllManagers = () => {
       const map = new Map<string, ManagerDirectoryItem>();
 
-      // 0. Base Enterprise Managers
-      DEFAULT_KNOWN_MANAGERS.forEach(m => {
-        if (m.companyEmail) map.set(m.companyEmail.toLowerCase(), m);
-      });
-
       // 1. Cached localStorage managers (created dynamically from manager portal)
       const cached = loadCachedManagers();
       cached.forEach(m => {
-        if (m.companyEmail) map.set(m.companyEmail.toLowerCase(), m);
+        if (m.companyEmail && !isDummyManagerAccount(m.companyEmail, m.fullName, m.employeeId)) {
+          map.set(m.companyEmail.toLowerCase(), m);
+        }
       });
 
       // 2. Credentials collection managers (Firestore manager_credentials)
       credManagerDocs.forEach(m => {
-        if (m.companyEmail) map.set(m.companyEmail.toLowerCase(), m);
+        if (m.companyEmail && !isDummyManagerAccount(m.companyEmail, m.fullName, m.employeeId)) {
+          map.set(m.companyEmail.toLowerCase(), m);
+        }
       });
 
       // 3. User collection managers (Firestore users collection - highest priority live state)
       userManagerDocs.forEach(m => {
-        if (m.companyEmail) map.set(m.companyEmail.toLowerCase(), m);
+        if (m.companyEmail && !isDummyManagerAccount(m.companyEmail, m.fullName, m.employeeId)) {
+          map.set(m.companyEmail.toLowerCase(), m);
+        }
       });
 
       const list = Array.from(map.values()).sort((a, b) => a.fullName.localeCompare(b.fullName));
@@ -285,8 +267,14 @@ export const AuthPage: React.FC = () => {
       const docs: ManagerDirectoryItem[] = [];
       snapshot.forEach(docSnap => {
         const data = docSnap.data() as UserProfile;
-        // Strictly filter out any trainer accounts
-        if (data && data.role === 'MANAGER' && (data as any).role !== 'TRAINER' && data.companyEmail) {
+        // Strictly filter out any trainer accounts and legacy dummy accounts
+        if (
+          data && 
+          data.role === 'MANAGER' && 
+          (data as any).role !== 'TRAINER' && 
+          data.companyEmail && 
+          !isDummyManagerAccount(data.companyEmail, data.fullName, data.employeeId)
+        ) {
           docs.push({
             uid: data.uid || docSnap.id,
             fullName: data.fullName,
@@ -305,36 +293,35 @@ export const AuthPage: React.FC = () => {
       console.warn('Real-time manager users sync notice:', err);
     });
 
-    // 2. Query manager_credentials collection (strictly role == 'MANAGER')
-    const fetchCreds = async () => {
-      try {
-        const credCol = collection(db, 'manager_credentials');
-        const snap = await getDocs(credCol);
-        const docs: ManagerDirectoryItem[] = [];
-        snap.forEach(d => {
-          const data = d.data();
-          const p = data.profile || data;
-          const isManagerRole = (data.role === 'MANAGER' || p.role === 'MANAGER') && data.role !== 'TRAINER' && p.role !== 'TRAINER';
-          if (p && isManagerRole && (p.companyEmail || data.email)) {
-            docs.push({
-              uid: data.uid || p.uid || d.id,
-              fullName: p.fullName || data.fullName || 'Manager',
-              companyEmail: (p.companyEmail || data.email).toLowerCase(),
-              employeeId: p.employeeId || data.employeeId,
-              department: p.department || data.department,
-              designation: p.designation || data.designation,
-              location: p.location || data.location,
-              teamName: p.teamName || data.teamName,
-            });
-          }
-        });
-        credManagerDocs = docs;
-        syncAllManagers();
-      } catch (e) {
-        console.warn('Error fetching manager_credentials:', e);
-      }
-    };
-    fetchCreds();
+    // 2. Real-time subscription to manager_credentials collection for instant cross-reflection
+    const credCol = collection(db, 'manager_credentials');
+    const unsubCreds = onSnapshot(credCol, (snap) => {
+      const docs: ManagerDirectoryItem[] = [];
+      snap.forEach(d => {
+        const data = d.data();
+        const p = data.profile || data;
+        const isManagerRole = (data.role === 'MANAGER' || p.role === 'MANAGER') && data.role !== 'TRAINER' && p.role !== 'TRAINER';
+        const email = (p.companyEmail || data.email || '').toLowerCase().trim();
+        const fullName = p.fullName || data.fullName || '';
+        const empId = p.employeeId || data.employeeId || '';
+        if (p && isManagerRole && email && !isDummyManagerAccount(email, fullName, empId)) {
+          docs.push({
+            uid: data.uid || p.uid || d.id,
+            fullName: fullName || 'Manager',
+            companyEmail: email,
+            employeeId: empId,
+            department: p.department || data.department,
+            designation: p.designation || data.designation,
+            location: p.location || data.location,
+            teamName: p.teamName || data.teamName,
+          });
+        }
+      });
+      credManagerDocs = docs;
+      syncAllManagers();
+    }, (e) => {
+      console.warn('Error listening to manager_credentials:', e);
+    });
 
     // 3. Storage event listener across tabs/windows
     const handleStorageChange = () => {
@@ -345,6 +332,7 @@ export const AuthPage: React.FC = () => {
 
     return () => {
       unsubUsers();
+      unsubCreds();
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('nxtwave_manager_registered', handleStorageChange);
     };
@@ -1849,15 +1837,23 @@ export const AuthPage: React.FC = () => {
                         <label className="block text-[11px] font-semibold text-slate-700">
                           Select Reporting Manager <span className="text-sky-600 font-normal">(Auto-fills Name & Work Email)</span>
                         </label>
-                        {trainerForm.managerName && (
-                          <button
-                            type="button"
-                            onClick={handleClearManager}
-                            className="text-[10px] font-semibold text-slate-500 hover:text-rose-600 transition-colors"
-                          >
-                            Clear Selection
-                          </button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {registeredManagers.length > 0 && (
+                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              {registeredManagers.length} Manager{registeredManagers.length > 1 ? 's' : ''} in Database
+                            </span>
+                          )}
+                          {trainerForm.managerName && (
+                            <button
+                              type="button"
+                              onClick={handleClearManager}
+                              className="text-[10px] font-semibold text-slate-500 hover:text-rose-600 transition-colors"
+                            >
+                              Clear Selection
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       <div className="relative">
@@ -1990,8 +1986,9 @@ export const AuthPage: React.FC = () => {
                                 })}
 
                               {registeredManagers.length === 0 && (
-                                <div className="p-4 text-center text-xs text-slate-500">
-                                  No registered managers found in database. You can type manager details manually below.
+                                <div className="p-4 text-center text-xs text-slate-500 space-y-1">
+                                  <p className="font-semibold text-slate-700">No managers found in database yet.</p>
+                                  <p className="text-[11px] text-slate-400">When a Manager registers in the Manager Sign Up portal, their name and official email will instantly appear here in real-time.</p>
                                 </div>
                               )}
                             </div>

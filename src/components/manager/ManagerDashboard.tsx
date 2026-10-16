@@ -80,7 +80,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onNavigate, 
               Instructor Workload &amp; Operations Center
             </h1>
             <p className="mt-1 text-sm text-sky-100/90 max-w-2xl">
-              {userProfile?.fullName || 'Sarah Jenkins'} • {userProfile?.designation || 'VP of Technical Enablement & Training'}
+              {userProfile?.fullName || 'Manager'} • {userProfile?.designation || 'Capability Manager'}
             </p>
           </div>
 

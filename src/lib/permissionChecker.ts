@@ -109,166 +109,6 @@ export function validateTrainerManagerOwnership(
     };
   }
 
-  // Helper match tests for known manager clusters
-  const isMgrNorthYashwan = 
-    mgrUid === 'mgr-yash-01' || 
-    mgrEmpId === 'nw2015' || 
-    mgrEmail.includes('yash') || 
-    mgrEmail.includes('north.yashwan') || 
-    mgrName.includes('yash') || 
-    mgrName.includes('north yashwan') ||
-    mgrName.includes('yashwanth') ||
-    mgrName.includes('yashwan');
-
-  const isTrnTargetNorthYashwan =
-    trnMgrId === 'mgr-yash-01' ||
-    trnMgrId === 'nw2015' ||
-    trnMgrEmail.includes('yash') ||
-    trnMgrEmail.includes('north.yashwan') ||
-    trnMgrName.includes('yash') ||
-    trnMgrName.includes('north yashwan') ||
-    trnMgrName.includes('yashwanth') ||
-    trnMgrName.includes('yashwan') ||
-    trnUid === 'trainer-teju-08' ||
-    trnUid === 'trainer-marcus-05' ||
-    trnEmpId === 'nw1108' ||
-    trnEmpId === 'nw1089' ||
-    trnName === 'teju' ||
-    trnName.includes('marcus vance');
-
-  if (isMgrNorthYashwan && isTrnTargetNorthYashwan && (mgrDept === 'frontend' || !mgrDept)) {
-    return {
-      isOwned: true,
-      reason: 'Ownership verified via Frontend Lead (North Yashwan) assignment.',
-      managerId: manager.uid,
-      managerName: manager.fullName || 'North Yashwan',
-      trainerId: trainer.uid,
-      trainerName: trainer.fullName,
-      matchedCriteria: 'SEED_ALIAS'
-    };
-  }
-
-  const isMgrChandana = 
-    mgrUid === 'mgr-chandana-01' || 
-    mgrEmpId === 'nw2008' || 
-    mgrEmail.includes('chandana') || 
-    mgrName.includes('chandana');
-
-  const isTrnTargetChandana =
-    trnMgrId === 'mgr-chandana-01' ||
-    trnMgrId === 'nw2008' ||
-    trnMgrEmail.includes('chandana') ||
-    trnMgrName.includes('chandana') ||
-    trnUid === 'trainer-david-03' ||
-    trnUid === 'trainer-ishu-07' ||
-    trnEmpId === 'nw1065' ||
-    trnEmpId === 'nw1102' ||
-    trnName.includes('david chen') ||
-    trnName === 'ishu';
-
-  if (isMgrChandana && isTrnTargetChandana && (mgrDept === 'frontend' || !mgrDept)) {
-    return {
-      isOwned: true,
-      reason: 'Ownership verified via Frontend Lead (Chandana) assignment.',
-      managerId: manager.uid,
-      managerName: manager.fullName || 'Chandana',
-      trainerId: trainer.uid,
-      trainerName: trainer.fullName,
-      matchedCriteria: 'SEED_ALIAS'
-    };
-  }
-
-  const isMgrNitin = 
-    mgrUid === 'mgr-nitin-01' || 
-    mgrEmpId === 'nw2018' || 
-    mgrEmail.includes('nitin') || 
-    mgrName.includes('nitin');
-
-  const isTrnTargetNitin =
-    trnMgrId === 'mgr-nitin-01' ||
-    trnMgrId === 'nw2018' ||
-    trnMgrEmail.includes('nitin') ||
-    trnMgrName.includes('nitin') ||
-    trnUid === 'trainer-suhas-09' ||
-    trnEmpId === 'nw1112' ||
-    trnName.includes('suhas');
-
-  if (isMgrNitin && isTrnTargetNitin && (mgrDept === 'frontend' || !mgrDept)) {
-    return {
-      isOwned: true,
-      reason: 'Ownership verified via Frontend Lead (Nitin) assignment.',
-      managerId: manager.uid,
-      managerName: manager.fullName || 'Nitin',
-      trainerId: trainer.uid,
-      trainerName: trainer.fullName,
-      matchedCriteria: 'SEED_ALIAS'
-    };
-  }
-
-  const isMgrVikram = 
-    mgrUid === 'mgr-vikram-01' || 
-    mgrEmpId === 'nw2022' || 
-    mgrEmail.includes('vikram') || 
-    mgrName.includes('vikram');
-
-  const isTrnTargetVikram =
-    trnMgrId === 'mgr-vikram-01' ||
-    trnMgrId === 'nw2022' ||
-    trnMgrEmail.includes('vikram') ||
-    trnMgrName.includes('vikram') ||
-    trnUid === 'trainer-elena-04' ||
-    trnEmpId === 'nw1077' ||
-    trnName.includes('elena rostova');
-
-  if (isMgrVikram && isTrnTargetVikram && (mgrDept === 'backend' || !mgrDept)) {
-    return {
-      isOwned: true,
-      reason: 'Ownership verified via Backend Lead (Vikram Rao) assignment.',
-      managerId: manager.uid,
-      managerName: manager.fullName || 'Vikram Rao',
-      trainerId: trainer.uid,
-      trainerName: trainer.fullName,
-      matchedCriteria: 'SEED_ALIAS'
-    };
-  }
-
-  const isMgrSarah = 
-    mgrUid === 'mgr-enterprise-01' || 
-    mgrEmpId === 'mgr-7701' || 
-    mgrEmpId === 'nw2001' || 
-    mgrEmail.includes('sarah') || 
-    mgrEmail.includes('manager@enterprise.com') ||
-    mgrName.includes('sarah');
-
-  const isTrnTargetSarah =
-    trnMgrId === 'mgr-enterprise-01' ||
-    trnMgrId === 'm-1' ||
-    trnMgrId === 'nw2001' ||
-    trnMgrId === 'mgr-7701' ||
-    trnMgrEmail.includes('sarah') ||
-    trnMgrName.includes('sarah') ||
-    trnUid === 'trainer-alex-01' ||
-    trnUid === 'trainer-priya-02' ||
-    trnUid === 'trainer-eshwanth-06' ||
-    trnEmpId === 'nw1048' ||
-    trnEmpId === 'nw1052' ||
-    trnEmpId === 'nw1095' ||
-    trnName.includes('alex morgan') ||
-    trnName.includes('priya sharma') ||
-    trnName.includes('eshwanth');
-
-  if (isMgrSarah && isTrnTargetSarah && (mgrDept === 'genai' || !mgrDept)) {
-    return {
-      isOwned: true,
-      reason: 'Ownership verified via GenAI Director (Sarah Jenkins) assignment.',
-      managerId: manager.uid,
-      managerName: manager.fullName || 'Sarah Jenkins',
-      trainerId: trainer.uid,
-      trainerName: trainer.fullName,
-      matchedCriteria: 'SEED_ALIAS'
-    };
-  }
-
   // 2. Direct Explicit Match Criteria (for newly registered managers and trainers)
   // 2a. Direct ID Match (UID or Employee ID)
   if (trnMgrId && (trnMgrId === mgrUid || (mgrEmpId && trnMgrId === mgrEmpId))) {
@@ -357,35 +197,17 @@ export function validateTrainerManagerOwnership(
     };
   }
 
-  // 4. Fallback: Unassigned Trainer default lead routing
+  // 4. Fallback: Unassigned Trainer default lead routing (any manager in the same department)
   if (!trnMgrId && !trnMgrName && !trnMgrEmail && mgrDept && trnDept && mgrDept === trnDept) {
-    if (mgrDept === 'genai' && (mgrName.includes('sarah') || mgrUid === 'mgr-enterprise-01')) {
-      return {
-        isOwned: true,
-        reason: 'Ownership routed to primary GenAI Department Lead.',
-        managerId: manager.uid,
-        trainerId: trainer.uid,
-        matchedCriteria: 'PRIMARY_LEAD'
-      };
-    }
-    if (mgrDept === 'frontend' && (mgrName.includes('chandana') || mgrUid === 'mgr-chandana-01')) {
-      return {
-        isOwned: true,
-        reason: 'Ownership routed to primary Frontend Department Lead.',
-        managerId: manager.uid,
-        trainerId: trainer.uid,
-        matchedCriteria: 'PRIMARY_LEAD'
-      };
-    }
-    if (mgrDept === 'backend' && (mgrName.includes('vikram') || mgrUid === 'mgr-vikram-01')) {
-      return {
-        isOwned: true,
-        reason: 'Ownership routed to primary Backend Department Lead.',
-        managerId: manager.uid,
-        trainerId: trainer.uid,
-        matchedCriteria: 'PRIMARY_LEAD'
-      };
-    }
+    return {
+      isOwned: true,
+      reason: `Departmental management visibility for ${manager.department || 'Department'} instructor.`,
+      managerId: manager.uid,
+      managerName: manager.fullName,
+      trainerId: trainer.uid,
+      trainerName: trainer.fullName,
+      matchedCriteria: 'PRIMARY_LEAD'
+    };
   }
 
   return {
