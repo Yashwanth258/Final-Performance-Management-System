@@ -187,11 +187,12 @@ export const TrainerProfileView: React.FC = () => {
   };
 
   const subjectPills = [
+    'GenAI',
+    'LLMs',
+    'AI for Finance',
     'Software Development',
     'Frontend Web Engineering',
     'Backend & Distributed Systems',
-    'Generative AI & LLMs',
-    'Full Stack Python / React',
     'Data Structures & Algorithms',
   ];
 
@@ -634,16 +635,16 @@ export const TrainerProfileView: React.FC = () => {
             {/* Quick Suggestions (enabled in edit mode) */}
             {isEditing && (
               <div className="flex flex-wrap items-center gap-1.5 animate-in fade-in duration-150">
-                <span className="text-[10px] text-slate-500 mr-1">Suggestions:</span>
+                <span className="text-[11px] font-medium text-slate-500 mr-1">Subject suggestions:</span>
                 {subjectPills.map((subj) => (
                   <button
                     key={subj}
                     type="button"
                     onClick={() => setFormData({ ...formData, subject: subj })}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-medium transition-all cursor-pointer ${
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
                       formData.subject === subj
                         ? 'bg-sky-600 text-white shadow-xs'
-                        : 'bg-slate-100 hover:bg-sky-50 text-slate-700 hover:text-sky-800'
+                        : 'bg-slate-100 hover:bg-sky-100 text-slate-700 hover:text-sky-800'
                     }`}
                   >
                     {subj}
