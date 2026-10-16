@@ -241,10 +241,28 @@ export const DailyWorkView: React.FC = () => {
   const [saving, setSaving] = useState(false);
 
   // Auto-updating state handlers for smooth UX
-  // Helper to remove leave note prefix if converting back to workday
+  // Helper to detect if a text contains any leave markers or default leave strings
+  const isLeaveText = (tasks: string) => {
+    if (!tasks) return false;
+    const lower = tasks.toLowerCase().trim();
+    return (
+      lower.startsWith('[') ||
+      lower.includes('authorized leave') ||
+      lower.includes('sick leave') ||
+      lower.includes('casual leave') ||
+      lower.includes('unpaid leave') ||
+      lower.includes('loss of pay') ||
+      lower.includes('on leave') ||
+      lower.includes('(sl)') ||
+      lower.includes('(cl)') ||
+      lower.includes('(lop)')
+    );
+  };
+
+  // Helper to remove leave note prefix or leave text if converting back to workday or on normal workdays
   const cleanTasksForWorkday = (tasks: string) => {
     if (!tasks) return '';
-    if (tasks.startsWith('[Casual Leave]') || tasks.startsWith('[Sick Leave]') || tasks.startsWith('[Unpaid Leave]') || tasks.startsWith('[None]')) {
+    if (isLeaveText(tasks)) {
       return '';
     }
     return tasks;
@@ -638,9 +656,9 @@ export const DailyWorkView: React.FC = () => {
       addCat = 'In-service';
     }
 
-    // If it was a leave, tasksWorkedOn might be "[Sick Leave] ..."; clean it up for workday editing
+    // Clean up tasksWorkedOn so workday editing NEVER defaults to or shows any leave text
     let initialTasks = update.tasksWorkedOn || '';
-    if (isLeave && initialTasks.startsWith('[')) {
+    if (isLeaveText(initialTasks)) {
       initialTasks = '';
     }
 
@@ -663,7 +681,7 @@ export const DailyWorkView: React.FC = () => {
       classDurationMinutes: cDuration,
       practiceSessionsCount: pCount,
       practiceDurationMinutes: pDuration,
-      tasksWorkedOn: initialTasks,
+      tasksWorkedOn: isLeave ? '' : initialTasks,
       additionalCategory: addCat,
       paperEvaluationHours: update.paperEvaluationHours || 1.0,
       inServiceHours: update.inServiceHours || 1.0,
@@ -1521,7 +1539,9 @@ export const DailyWorkView: React.FC = () => {
         totalPracticeDurationMinutes: isLeave ? 0 : totalPracticeMinutes,
         totalSessionsCount: isLeave ? 0 : (Number(formData.classesCount) + Number(formData.practiceSessionsCount)),
         sessionMinutesCalculated: isLeave ? 0 : totalTeachingMinutes,
-        tasksWorkedOn: isLeave ? `[${leaveTypeTitle}] ${leaveReason || 'Authorized Leave'}` : (formData.tasksWorkedOn.trim() || `${formData.classesCount} Classes and ${formData.practiceSessionsCount} Practice Sessions conducted`),
+        tasksWorkedOn: isLeave 
+          ? `[${leaveTypeTitle}] ${leaveReason || 'Authorized Leave'}` 
+          : (cleanTasksForWorkday(formData.tasksWorkedOn).trim() || `${formData.classesCount} Classes and ${formData.practiceSessionsCount} Practice Sessions conducted`),
         projectUpdates: isLeave ? `On Leave (${leaveTypeTitle})` : `${formData.practiceSessionsCount} Practice Sessions (${totalPracticeMinutes} mins)`,
         additionalCategory: isLeave ? 'None' : formData.additionalCategory,
         additionalResponsibilities: isLeave ? 'None (On Leave)' : additionalSummary,
@@ -3673,7 +3693,7 @@ export const DailyWorkView: React.FC = () => {
                   id="tasks-worked-on-textarea"
                   rows={2}
                   placeholder="Summary of topics taught, student lab coordination, and code reviews completed..."
-                  value={formData.tasksWorkedOn}
+                  value={!formData.isLeave && isLeaveText(formData.tasksWorkedOn) ? '' : formData.tasksWorkedOn}
                   onChange={(e) => setFormData({ ...formData, tasksWorkedOn: e.target.value })}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/40 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-sky-500 focus:outline-hidden leading-relaxed"
                 />
