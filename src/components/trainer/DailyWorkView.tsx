@@ -35,7 +35,9 @@ import {
   Coffee,
   Palmtree,
   HeartPulse,
-  UserX
+  UserX,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -239,6 +241,10 @@ export const DailyWorkView: React.FC = () => {
   const [formData, setFormData] = useState(getInitialFormData(todayStr));
 
   const [saving, setSaving] = useState(false);
+  // Full view / pop-up reader state for task completed inspection
+  const [viewingTaskUpdate, setViewingTaskUpdate] = useState<DailyUpdate | null>(null);
+  // Maximize editor popup for tasks completed textarea
+  const [isTasksEditorExpanded, setIsTasksEditorExpanded] = useState(false);
 
   // Auto-updating state handlers for smooth UX
   // Helper to detect if a text contains any leave markers or default leave strings
@@ -1504,6 +1510,17 @@ export const DailyWorkView: React.FC = () => {
       addToast({
         title: 'Future Date Not Allowed',
         message: 'Attendance and daily work cannot be logged for future dates.',
+        type: 'error',
+        duration: 5000
+      });
+      return;
+    }
+
+    const isLeaveCheck = !!formData.isLeave && formData.leaveType !== 'NONE';
+    if (!isLeaveCheck && !cleanTasksForWorkday(formData.tasksWorkedOn).trim()) {
+      addToast({
+        title: 'Mandatory Field Missing',
+        message: 'Tasks Completed Today is mandatory. Please describe what was completed or learned today.',
         type: 'error',
         duration: 5000
       });
@@ -3168,16 +3185,39 @@ export const DailyWorkView: React.FC = () => {
                   </div>
 
                   {/* Task Worked On */}
-                  <div className="rounded-xl bg-sky-50/50 p-3.5 border border-sky-100/80">
-                    <p className="font-bold text-sky-950 mb-1.5 flex items-center gap-1.5">
-                      <Briefcase className="h-3.5 w-3.5 text-sky-600" />
-                      <span>{isLeave ? 'Reason for Leave' : 'Task Worked On'}</span>
-                    </p>
-                    <p className="text-slate-700 line-clamp-3 leading-relaxed whitespace-pre-wrap">
-                      {isLeave 
-                        ? (update.leaveReason || 'Taken Leave')
-                        : (update.tasksWorkedOn || 'No task description provided.')}
-                    </p>
+                  <div className="rounded-xl bg-sky-50/50 p-3.5 border border-sky-100/80 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <p className="font-bold text-sky-950 flex items-center gap-1.5">
+                          <Briefcase className="h-3.5 w-3.5 text-sky-600" />
+                          <span>{isLeave ? 'Reason for Leave' : 'Tasks Completed Today'}</span>
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setViewingTaskUpdate(update)}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-700 hover:text-sky-900 bg-sky-100/70 hover:bg-sky-200/80 px-2 py-0.5 rounded-md border border-sky-200 transition-colors cursor-pointer"
+                          title="Open full view pop-up to inspect tasks and learnings"
+                        >
+                          <Maximize2 className="h-3 w-3" />
+                          <span>Maximize</span>
+                        </button>
+                      </div>
+                      <p className="text-slate-700 line-clamp-3 leading-relaxed whitespace-pre-wrap text-xs">
+                        {isLeave 
+                          ? (update.leaveReason || 'Taken Leave')
+                          : (update.tasksWorkedOn || 'No task description provided.')}
+                      </p>
+                    </div>
+
+                    {!isLeave && update.tasksWorkedOn && update.tasksWorkedOn.length > 80 && (
+                      <button
+                        type="button"
+                        onClick={() => setViewingTaskUpdate(update)}
+                        className="mt-2 text-left text-[11px] font-semibold text-sky-600 hover:text-sky-800 cursor-pointer"
+                      >
+                        Read full task notes &rarr;
+                      </button>
+                    )}
                   </div>
 
                   {/* Additional Responsibilities & Extra Hours / Burnout Reason */}
@@ -3680,22 +3720,6 @@ export const DailyWorkView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Task Worked On (Description) */}
-              <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">
-                  Tasks Completed Today *
-                </label>
-                <textarea
-                  required={!formData.isLeave}
-                  id="tasks-worked-on-textarea"
-                  rows={2}
-                  placeholder="Summary of topics taught, student lab coordination, and code reviews completed..."
-                  value={!formData.isLeave && isLeaveText(formData.tasksWorkedOn) ? '' : formData.tasksWorkedOn}
-                  onChange={(e) => setFormData({ ...formData, tasksWorkedOn: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/40 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-sky-500 focus:outline-hidden leading-relaxed"
-                />
-              </div>
-
               {/* Additional Responsibilities (Invigilation, Paper Evaluation, In-service) */}
               <div className="rounded-2xl border border-slate-200 bg-slate-50/30 p-3.5 space-y-3">
                 <div className="flex items-center justify-between">
@@ -3903,6 +3927,56 @@ export const DailyWorkView: React.FC = () => {
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* Tasks Completed Today (Mandatory - Positioned after Additional Responsibilities) */}
+              <div className="rounded-2xl border border-sky-200/80 bg-linear-to-b from-sky-50/50 to-white p-3.5 space-y-2 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Briefcase className="h-4 w-4 text-sky-600" />
+                    <label htmlFor="tasks-worked-on-textarea" className="text-xs font-bold text-slate-900">
+                      Tasks Completed Today <span className="text-rose-600">* (Mandatory)</span>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-medium text-slate-500 hidden sm:inline">
+                      Topics taught, lab work & what was learned
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsTasksEditorExpanded(true)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-sky-700 bg-sky-100 hover:bg-sky-200 rounded-lg border border-sky-300 transition-colors cursor-pointer"
+                      title="Open in full maximized popup editor for easy review and typing"
+                    >
+                      <Maximize2 className="h-3 w-3" />
+                      <span>Maximize Editor</span>
+                    </button>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-slate-500 leading-normal">
+                  Detail what you have accomplished today, concepts covered in classes/labs, and key learnings or insights acquired during execution.
+                </p>
+
+                <textarea
+                  required={!formData.isLeave}
+                  id="tasks-worked-on-textarea"
+                  rows={4}
+                  placeholder="Describe what you completed today: topics taught, student lab coordination, issues resolved, and what you learned during today's sessions..."
+                  value={!formData.isLeave && isLeaveText(formData.tasksWorkedOn) ? '' : formData.tasksWorkedOn}
+                  onChange={(e) => setFormData({ ...formData, tasksWorkedOn: e.target.value })}
+                  className="w-full rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-900 focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-100 focus:outline-hidden leading-relaxed placeholder:text-slate-400"
+                />
+
+                <div className="flex items-center justify-between text-[11px] text-slate-400 pt-0.5">
+                  <span className="text-slate-500">
+                    Character count: {(!formData.isLeave && isLeaveText(formData.tasksWorkedOn) ? '' : formData.tasksWorkedOn).length}
+                  </span>
+                  <span className="text-rose-600/90 font-medium">
+                    * Required for work log submission
+                  </span>
+                </div>
               </div>
 
           {/* Section: Hours & Overtime Summary */}
@@ -4147,6 +4221,164 @@ export const DailyWorkView: React.FC = () => {
                 className="rounded-xl bg-sky-100 px-5 py-2 font-semibold text-sky-800 hover:bg-sky-200 cursor-pointer"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Maximized Task Editor Modal */}
+      {isTasksEditorExpanded && (
+        <Modal
+          isOpen={isTasksEditorExpanded}
+          onClose={() => setIsTasksEditorExpanded(false)}
+          title={`Detailed Tasks & Learning Editor (${formData.date})`}
+          subtitle="Expanded workspace to write, review, and edit what you completed and learned today."
+          maxWidth="4xl"
+          allowMaximize={true}
+        >
+          <div className="space-y-4 text-xs">
+            <div className="p-3.5 rounded-xl bg-sky-50 border border-sky-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Briefcase className="h-4 w-4 text-sky-600 shrink-0" />
+                <span className="font-semibold text-slate-700">
+                  Daily Workload & Learning Narrative <span className="text-rose-600 font-bold">* Mandatory</span>
+                </span>
+              </div>
+              <span className="text-[11px] text-sky-700 font-medium bg-white px-2.5 py-0.5 rounded-md border border-sky-200">
+                Editing Log for {formData.date}
+              </span>
+            </div>
+
+            <div>
+              <label htmlFor="tasks-expanded-editor-textarea" className="block text-xs font-bold text-slate-800 mb-1.5">
+                Tasks Completed, Topics Taught & Key Learnings
+              </label>
+              <textarea
+                id="tasks-expanded-editor-textarea"
+                rows={12}
+                value={!formData.isLeave && isLeaveText(formData.tasksWorkedOn) ? '' : formData.tasksWorkedOn}
+                onChange={(e) => setFormData({ ...formData, tasksWorkedOn: e.target.value })}
+                placeholder="1. Topics and Concepts Covered: Detail chapters, modules, frameworks taught to trainees...&#10;2. Lab Practice & Project Coordination: Practical exercises, debugging sessions, or project milestones handled...&#10;3. Key Learnings & Trainee Feedback: What you learned during this session, challenges overcome, or insights gained...&#10;4. Tasks for Follow-up: Next steps planned for subsequent classes."
+                className="w-full rounded-xl border border-slate-300 bg-white p-3.5 text-xs text-slate-900 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 focus:outline-hidden font-mono leading-relaxed"
+              />
+              <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1">
+                <span>Total Characters: {(!formData.isLeave && isLeaveText(formData.tasksWorkedOn) ? '' : formData.tasksWorkedOn).length}</span>
+                <span className="text-slate-400">Press ESC or click Done to save back to work log form</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, tasksWorkedOn: '' })}
+                className="text-xs text-rose-600 hover:text-rose-800 font-medium cursor-pointer"
+              >
+                Clear Text
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsTasksEditorExpanded(false)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-sky-600 px-5 py-2 text-xs font-semibold text-white hover:bg-sky-500 transition-colors cursor-pointer shadow-xs"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                <span>Save to Work Log & Return</span>
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Pop-up Inspector for viewing task notes in large reader mode */}
+      {viewingTaskUpdate && (
+        <Modal
+          isOpen={!!viewingTaskUpdate}
+          onClose={() => setViewingTaskUpdate(null)}
+          title={`Tasks & Learnings: ${viewingTaskUpdate.date}`}
+          subtitle={`Full review of work completed and learnings logged by ${viewingTaskUpdate.employeeName || 'Instructor'}`}
+          maxWidth="3xl"
+          allowMaximize={true}
+        >
+          <div className="space-y-4 text-xs">
+            {/* Quick Metrics Header */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div className="p-3 rounded-xl bg-sky-50/70 border border-sky-100">
+                <span className="text-[11px] text-slate-500">Date Logged</span>
+                <p className="text-xs font-bold text-slate-900 mt-0.5">{viewingTaskUpdate.date}</p>
+              </div>
+              <div className="p-3 rounded-xl bg-sky-50/70 border border-sky-100">
+                <span className="text-[11px] text-slate-500">Teaching Delivery</span>
+                <p className="text-xs font-bold text-slate-900 mt-0.5">
+                  {viewingTaskUpdate.classesCount || 0} Classes, {viewingTaskUpdate.practiceSessionsCount || 0} Practice
+                </p>
+              </div>
+              <div className="p-3 rounded-xl bg-sky-50/70 border border-sky-100">
+                <span className="text-[11px] text-slate-500">Total Output</span>
+                <p className="text-xs font-bold text-sky-950 mt-0.5">
+                  {viewingTaskUpdate.hoursLogged || 6}h Logged
+                  {viewingTaskUpdate.extraHoursWorked && viewingTaskUpdate.extraHoursWorked > 0 ? (
+                    <span className="ml-1 text-[11px] text-amber-700 font-extrabold">(+{viewingTaskUpdate.extraHoursWorked}h OT)</span>
+                  ) : ''}
+                </p>
+              </div>
+            </div>
+
+            {/* Additional Responsibilities Summary if any */}
+            {viewingTaskUpdate.additionalCategory && viewingTaskUpdate.additionalCategory !== 'None' && (
+              <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FileCheck2 className="h-4 w-4 text-amber-600" />
+                  <span className="font-semibold text-amber-950">
+                    Additional Responsibilities: {viewingTaskUpdate.additionalCategory}
+                  </span>
+                </div>
+                <span className="text-[11px] font-bold text-amber-900 bg-white px-2 py-0.5 rounded border border-amber-200">
+                  {viewingTaskUpdate.additionalResponsibilities || `${viewingTaskUpdate.invigilationHours || 0}h Invigilation / ${viewingTaskUpdate.paperEvaluationHours || 0}h Paper`}
+                </span>
+              </div>
+            )}
+
+            {/* Full Task Description & Learnings */}
+            <div className="rounded-xl border border-sky-200 bg-slate-50/40 p-4 space-y-2">
+              <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
+                <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                  <Briefcase className="h-4 w-4 text-sky-600" />
+                  <span>Tasks Completed Today & What was Learned</span>
+                </span>
+                <span className="text-[11px] font-medium text-slate-500">
+                  Full Inspection View
+                </span>
+              </div>
+
+              <div className="bg-white rounded-lg p-3.5 border border-slate-200 font-sans text-xs text-slate-900 whitespace-pre-wrap leading-relaxed max-h-[55vh] overflow-y-auto">
+                {viewingTaskUpdate.tasksWorkedOn || (
+                  <span className="text-slate-400 italic">No tasks or learning description logged for this date.</span>
+                )}
+              </div>
+            </div>
+
+            {/* Actions: Direct Edit or Close */}
+            <div className="flex items-center justify-between pt-3 border-t border-sky-100">
+              <button
+                type="button"
+                onClick={() => {
+                  const target = viewingTaskUpdate;
+                  setViewingTaskUpdate(null);
+                  openEditModal(target);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-4 py-2 text-xs font-semibold text-white hover:bg-amber-500 transition-colors cursor-pointer shadow-xs"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                <span>Edit This Work Log</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewingTaskUpdate(null)}
+                className="rounded-xl bg-sky-100 px-5 py-2 font-semibold text-sky-800 hover:bg-sky-200 cursor-pointer"
+              >
+                Close Pop-up
               </button>
             </div>
           </div>
