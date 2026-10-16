@@ -690,6 +690,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const cleanPass = data.password ? data.password.trim() : '';
 
     try {
+      // Strict Company Email Validation: Instructors and Managers must use official @nxtwave.co.in company email
+      if (!cleanEmail.endsWith('@nxtwave.co.in')) {
+        throw new Error('Please register with your official company email ID (@nxtwave.co.in). Example: name@nxtwave.co.in');
+      }
+
       const isMgr = data.role === 'MANAGER';
 
       // Strict Enterprise Security Validation: When registering as Manager, verify passcode
