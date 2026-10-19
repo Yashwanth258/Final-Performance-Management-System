@@ -62,7 +62,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   // Never load profile from localStorage - initialize to null and load purely from Supabase
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return Boolean(localStorage.getItem(SB_SESSION_KEY));
+    }
+    return false;
+  });
   const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
 
   // Restore saved session on startup directly from Supabase
@@ -341,6 +346,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     try {
       localStorage.removeItem(SB_SESSION_KEY);
+      localStorage.removeItem('sb-current-view');
+      if (typeof window !== 'undefined') {
+        window.location.hash = '';
+      }
       setCurrentUser(null);
       setUserProfile(null);
       setIsDemoMode(false);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider, useData } from './context/DataContext';
 import { ToastProvider, useToast } from './context/ToastContext';
@@ -38,7 +38,16 @@ const MainAppContent: React.FC = () => {
   const { allTrainers, selectedTraineeId, setSelectedTraineeId } = useData();
   const { addToast } = useToast();
 
-  const [currentView, setCurrentView] = useState<string>('dashboard');
+  // Restore current view from URL hash or localStorage to keep page on reload
+  const [currentView, setCurrentView] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.replace('#', '').trim();
+      if (hash) return hash;
+      const saved = localStorage.getItem('sb-current-view');
+      if (saved) return saved;
+    }
+    return 'dashboard';
+  });
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
 
   // Automatic 30-Minute Session Inactivity Security Guard
@@ -58,10 +67,17 @@ const MainAppContent: React.FC = () => {
 
   const handleNavigate = useCallback((view: string) => {
     // If navigating to removed sections, gracefully route to dashboard
-    if (view === 'team-performance' || view === 'individual-performance') {
-      setCurrentView('dashboard');
-    } else {
-      setCurrentView(view);
+    const target = (view === 'team-performance' || view === 'individual-performance')
+      ? 'dashboard'
+      : view;
+    setCurrentView(target);
+    try {
+      localStorage.setItem('sb-current-view', target);
+      if (typeof window !== 'undefined' && window.location.hash !== `#${target}`) {
+        window.location.hash = target;
+      }
+    } catch {
+      // ignore
     }
     setIsSidebarOpen(false);
   }, []);
@@ -70,15 +86,65 @@ const MainAppContent: React.FC = () => {
     setSelectedTraineeId(empId);
   };
 
-  // Reset view when user role changes
+  // Sync hash changes (e.g. browser back / forward)
   useEffect(() => {
-    setCurrentView('dashboard');
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '').trim();
+      if (hash && hash !== currentView) {
+        setCurrentView(hash);
+        try {
+          localStorage.setItem('sb-current-view', hash);
+        } catch {
+          // ignore
+        }
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [currentView]);
+
+  // Only reset view when user role actually transitions to a different role
+  const previousRoleRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (userProfile?.role) {
+      if (previousRoleRef.current && previousRoleRef.current !== userProfile.role) {
+        setCurrentView('dashboard');
+        try {
+          localStorage.setItem('sb-current-view', 'dashboard');
+          window.location.hash = 'dashboard';
+        } catch {
+          // ignore
+        }
+      }
+      previousRoleRef.current = userProfile.role;
+    }
   }, [userProfile?.role]);
 
   // Real-time toast alerts for new tasks & approaching project deadlines (called unconditionally)
   useRealtimeNotifications(handleNavigate);
 
-  // If user is not logged in, show AuthPage directly (no intermediate portal loading screen)
+  // While active session is being verified / restored from Supabase on reload, show branded loader
+  // This prevents the sign-in page from flashing before loading the user's workspace
+  if (loading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-sky-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="relative flex items-center justify-center">
+            <div className="h-12 w-12 animate-spin rounded-full border-3 border-sky-600 border-t-transparent shadow-xs" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="h-2.5 w-2.5 rounded-full bg-sky-600 animate-pulse" />
+            </div>
+          </div>
+          <div className="flex flex-col items-center gap-0.5">
+            <span className="text-sm font-bold text-slate-800 tracking-tight">DailySync</span>
+            <span className="text-[11px] font-semibold text-slate-500">Restoring active session...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If user is not logged in after verification completes, show AuthPage
   if (!userProfile) {
     return <AuthPage />;
   }
