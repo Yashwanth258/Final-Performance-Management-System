@@ -439,7 +439,7 @@ export const IndividualPerformanceView: React.FC<IndividualPerformanceViewProps>
                 </span>
               </div>
 
-              {/* Work Health / Burnout Status */}
+              {/* Work Health / Extra Work Status */}
               <div className="rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs dark:border-slate-800 dark:bg-slate-800/70">
                 <div className="flex items-center justify-between text-sky-600 dark:text-sky-400">
                   <span className="text-[10px] font-bold uppercase tracking-wider">Work Load Health</span>

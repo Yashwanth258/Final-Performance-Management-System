@@ -206,7 +206,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onNavigate, 
             )}
           </div>
           <span className="text-2xs text-slate-400 mt-1 block">
-            {allTrainers && allTrainers.length > 0 ? 'Select to view daily work & burnout' : 'Trainees will appear when mapped'}
+            {allTrainers && allTrainers.length > 0 ? 'Select to view daily work & extra work' : 'Trainees will appear when mapped'}
           </span>
         </div>
 
@@ -230,7 +230,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onNavigate, 
         />
       </div>
 
-      {/* Main Dedicated Trainer Work Hours & Weekly Burnout Analysis Section */}
+      {/* Main Dedicated Trainer Work Hours & Weekly Extra Work Analysis Section */}
       <TrainerBurnoutWeeklyView
         trainers={allTrainers}
         dailyUpdates={dailyUpdates}

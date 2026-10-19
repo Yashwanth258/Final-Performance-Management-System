@@ -191,7 +191,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOpe
               /* Instructor Navigation Menu */
               <nav className="space-y-1">
                 {renderNav("dashboard", "Dashboard", LayoutDashboard, "Personal scorecard, attendance & daily metrics")}
-                {renderNav("daily-work", "Daily Work & Attendance", FileText, "Log daily hours, attendance, class delivery & burnout report")}
+                {renderNav("daily-work", "Daily Work & Attendance", FileText, "Log daily hours, attendance, class delivery & extra work report")}
                 {renderNav("profile", "Profile & Settings", User, "View & edit instructor profile, campus & qualifications")}
               </nav>
             )}

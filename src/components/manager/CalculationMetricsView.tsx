@@ -231,7 +231,7 @@ export const CalculationMetricsView: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                    Burnout Overtime Rate (% / hr)
+                    Extra Work Overtime Rate (% / hr)
                   </label>
                   <input
                     type="number"
@@ -419,7 +419,7 @@ export const CalculationMetricsView: React.FC = () => {
         <div className="rounded-2xl border border-amber-200/80 bg-linear-to-br from-white to-amber-50/30 p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">
-              Burnout / Overtime Bonus
+              Extra Work / Overtime Bonus
             </span>
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100 text-amber-600">
               <Flame className="h-4 w-4" />
@@ -509,7 +509,7 @@ export const CalculationMetricsView: React.FC = () => {
               </div>
               <div className="font-mono text-xs font-semibold leading-relaxed text-sky-950 sm:text-sm">
                 Overall Score (%) = Base SLA Delivery (100% max)
-                <br className="hidden sm:inline" /> + (Burnout Extra Hours × {metricConfig.burnoutHourRate}%)
+                <br className="hidden sm:inline" /> + (Extra Work Hours × {metricConfig.burnoutHourRate}%)
                 <br className="hidden sm:inline" /> + (Holistic Mentorship Hours × {metricConfig.holisticHourRate}%)
                 <br className="hidden sm:inline" /> + Task Completion Bonus (up to {metricConfig.maxTaskBonus}%)
                 <br className="hidden sm:inline" /> + Active Project Progress Bonus (up to {metricConfig.maxProjectBonus}%)
@@ -545,7 +545,7 @@ export const CalculationMetricsView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Pillar 2: Burnout Overtime */}
+              {/* Pillar 2: Extra Work Overtime */}
               <div className="flex items-start gap-3 rounded-xl border border-amber-100 bg-amber-50/40 p-3.5">
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-800 text-xs font-bold">
                   2
@@ -553,17 +553,17 @@ export const CalculationMetricsView: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-2">
                     <h4 className="text-xs font-bold text-slate-900">
-                      Burnout / Overtime Hours Bonus (+{metricConfig.burnoutHourRate}% / hr)
+                      Extra Work / Overtime Hours Bonus (+{metricConfig.burnoutHourRate}% / hr)
                     </h4>
                     <span className="rounded-sm bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
                       High Impact
                     </span>
                   </div>
                   <p className="text-xs text-slate-600 mt-1">
-                    Any hour logged beyond the daily {metricConfig.dailyStandardHours}.0h or weekly {metricConfig.weeklyStandardHours}.0h standard is classified as overtime/burnout. Each hour adds an extra <strong>+{metricConfig.burnoutHourRate}%</strong> directly to the overall score.
+                    Any hour logged beyond the daily {metricConfig.dailyStandardHours}.0h or weekly {metricConfig.weeklyStandardHours}.0h standard is classified as extra work. Each hour adds an extra <strong>+{metricConfig.burnoutHourRate}%</strong> directly to the overall score.
                   </p>
                   <div className="mt-2 text-[11px] font-medium text-amber-800 bg-white/80 rounded-md p-2 border border-amber-200">
-                    Example: 4 hours burnout in a week = 4 × {metricConfig.burnoutHourRate}% = <strong>+12% bonus</strong>.
+                    Example: 4 hours extra work in a week = 4 × {metricConfig.burnoutHourRate}% = <strong>+12% bonus</strong>.
                   </div>
                 </div>
               </div>
@@ -644,7 +644,7 @@ export const CalculationMetricsView: React.FC = () => {
                   </span>
                 </div>
                 <p className="mt-2 text-[11px] text-amber-900/80">
-                  Elite performers delivering top-tier overtime burnout hours (6+ hrs), leading strategic projects, and consistently driving peer mentorship.
+                  Elite performers delivering top-tier extra work hours (6+ hrs), leading strategic projects, and consistently driving peer mentorship.
                 </p>
               </div>
 
@@ -662,7 +662,7 @@ export const CalculationMetricsView: React.FC = () => {
                   </span>
                 </div>
                 <p className="mt-2 text-[11px] text-purple-900/80">
-                  High contributors who exceed core SLA with 3–5 hours overtime burnout, strong holistic guidance, or successful task execution.
+                  High contributors who exceed core SLA with 3–5 hours extra work, strong holistic guidance, or successful task execution.
                 </p>
               </div>
 
@@ -680,7 +680,7 @@ export const CalculationMetricsView: React.FC = () => {
                   </span>
                 </div>
                 <p className="mt-2 text-[11px] text-sky-900/80">
-                  Active contributors exceeding the standard 36.0h SLA with 1–2 hours extra burnout or dedicated peer counseling.
+                  Active contributors exceeding the standard 36.0h SLA with 1–2 hours extra work or dedicated peer counseling.
                 </p>
               </div>
 
@@ -751,7 +751,7 @@ export const CalculationMetricsView: React.FC = () => {
                 </span>
               </div>
               <h3 className="text-xs font-bold text-slate-900 mb-2">
-                36h SLA + 4h Burnout + 1h Holistic
+                36h SLA + 4h Extra Work + 1h Holistic
               </h3>
               <div className="space-y-1.5 text-[11px] text-slate-600">
                 <div className="flex justify-between">
@@ -759,7 +759,7 @@ export const CalculationMetricsView: React.FC = () => {
                   <span className="font-semibold text-slate-800">100.0%</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>• Burnout (4h × 3.0%):</span>
+                  <span>• Extra Work (4h × 3.0%):</span>
                   <span className="font-semibold text-amber-700">+12.0%</span>
                 </div>
                 <div className="flex justify-between">
@@ -789,7 +789,7 @@ export const CalculationMetricsView: React.FC = () => {
                 </span>
               </div>
               <h3 className="text-xs font-bold text-slate-900 mb-2">
-                36h SLA + 2h Burnout
+                36h SLA + 2h Extra Work
               </h3>
               <div className="space-y-1.5 text-[11px] text-slate-600">
                 <div className="flex justify-between">
@@ -797,7 +797,7 @@ export const CalculationMetricsView: React.FC = () => {
                   <span className="font-semibold text-slate-800">100.0%</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>• Burnout (2h × 3.0%):</span>
+                  <span>• Extra Work (2h × 3.0%):</span>
                   <span className="font-semibold text-amber-700">+6.0%</span>
                 </div>
                 <div className="flex justify-between">
@@ -827,7 +827,7 @@ export const CalculationMetricsView: React.FC = () => {
                 </span>
               </div>
               <h3 className="text-xs font-bold text-slate-900 mb-2">
-                36h SLA + 4h Burnout + 1 Project + 2 Tasks
+                36h SLA + 4h Extra Work + 1 Project + 2 Tasks
               </h3>
               <div className="space-y-1.5 text-[11px] text-slate-600">
                 <div className="flex justify-between">
@@ -835,7 +835,7 @@ export const CalculationMetricsView: React.FC = () => {
                   <span className="font-semibold text-slate-800">100.0%</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>• Burnout (4h × 3.0%):</span>
+                  <span>• Extra Work (4h × 3.0%):</span>
                   <span className="font-semibold text-amber-700">+12.0%</span>
                 </div>
                 <div className="flex justify-between">
@@ -905,10 +905,10 @@ export const CalculationMetricsView: React.FC = () => {
               </div>
             </div>
 
-            {/* Burnout Extra Hours */}
+            {/* Extra Work Hours */}
             <div>
               <div className="flex justify-between text-xs font-semibold text-slate-700 mb-1">
-                <span>Burnout / Extra Overtime Hours</span>
+                <span>Extra Work / Overtime Hours</span>
                 <span className="text-amber-700 font-bold">{simBurnoutHours} hrs (+{(simBurnoutHours * metricConfig.burnoutHourRate).toFixed(1)}%)</span>
               </div>
               <input
@@ -1015,7 +1015,7 @@ export const CalculationMetricsView: React.FC = () => {
                     <div 
                       style={{ width: `${(simResult.burnoutBonus / simResult.overallScore) * 100}%` }} 
                       className="bg-amber-500" 
-                      title={`Burnout Overtime: +${simResult.burnoutBonus}%`}
+                      title={`Extra Work Overtime: +${simResult.burnoutBonus}%`}
                     />
                   )}
                   {simResult.holisticBonus > 0 && (
@@ -1054,7 +1054,7 @@ export const CalculationMetricsView: React.FC = () => {
                     <div className="flex justify-between text-amber-700">
                       <span className="flex items-center gap-1.5">
                         <span className="h-2 w-2 rounded-full bg-amber-500" />
-                        <span>Burnout Bonus ({simBurnoutHours}h):</span>
+                        <span>Extra Work Bonus ({simBurnoutHours}h):</span>
                       </span>
                       <span className="font-semibold">+{simResult.burnoutBonus}%</span>
                     </div>

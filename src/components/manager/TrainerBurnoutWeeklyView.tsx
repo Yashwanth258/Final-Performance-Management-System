@@ -483,7 +483,7 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
             percentStr: `${Math.round((standardHoursCompleted / (weekTotalHours || 36.0)) * 100)}%`
           },
           ...(netBurnoutHours > 0 ? [{ 
-            name: 'Burnout Overtime', 
+            name: 'Extra Work', 
             value: netBurnoutHours, 
             color: '#fbbf24',
             percentStr: `${Math.round((netBurnoutHours / weekTotalHours) * 100)}%`
@@ -688,7 +688,7 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
         </div>
         <h3 className="text-base font-bold text-slate-800">No Mapped Trainees Available</h3>
         <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
-          Burnout risk and workload logs will automatically be tracked once trainees register or assign you as their reporting manager.
+          Extra work and workload logs will automatically be tracked once trainees register or assign you as their reporting manager.
         </p>
       </div>
     );
@@ -801,12 +801,12 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
               ? 'border-amber-300 bg-amber-50 text-amber-900' 
               : 'border-emerald-200 bg-emerald-50 text-emerald-900'
           }`}>
-            <span className="text-2xs font-bold uppercase tracking-wider block">Weekly Burnout</span>
+            <span className="text-2xs font-bold uppercase tracking-wider block">Weekly Extra Work</span>
             <span className="text-base font-extrabold">
-              {activeWeek.netBurnoutHours > 0 ? `+${activeWeek.netBurnoutHours} hrs` : '0.0 hrs (Balanced)'}
+              {activeWeek.netBurnoutHours > 0 ? `+${activeWeek.netBurnoutHours} hrs` : '0.0 hrs (Standard)'}
             </span>
             <span className="text-2xs opacity-80 block">
-              {activeWeek.netBurnoutHours > 0 ? `${activeWeek.overtimeDaysCount} Overtime Days` : 'All Overtime Balanced'}
+              {activeWeek.netBurnoutHours > 0 ? `${activeWeek.overtimeDaysCount} Days with Extra Work` : 'No Extra Work'}
             </span>
           </div>
         </div>
@@ -918,7 +918,7 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="h-3 w-3 rounded-xs bg-amber-500" />
-                <span className="text-slate-600">Burnout Overtime</span>
+                <span className="text-slate-600">Extra Work</span>
               </div>
             </div>
           </div>
@@ -942,9 +942,9 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
                             <>
                               <div className="text-slate-600">Total Worked: <strong>{data.totalHours} hrs</strong></div>
                               {data.netBurnout > 0 ? (
-                                <div className="text-amber-700 font-bold">Burnout Overtime: +{data.netBurnout} hrs</div>
+                                <div className="text-amber-700 font-bold">Extra Work: +{data.netBurnout} hrs</div>
                               ) : (
-                                <div className="text-emerald-600 font-bold">0.0 hrs (Balanced)</div>
+                                <div className="text-emerald-600 font-bold">0.0 hrs (Standard)</div>
                               )}
                             </>
                           )}
@@ -1031,7 +1031,7 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
         </div>
       </div>
 
-      {/* 5. Visual Day-Wise Chart and Weekly Burnout Pie Chart */}
+      {/* 5. Visual Day-Wise Chart and Weekly Extra Work Pie Chart */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left: Day-Wise Bar Chart (7 cols) */}
         <div className="lg:col-span-7 rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col justify-between">
@@ -1273,7 +1273,7 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
                   />
                   <Bar 
                     dataKey="burnoutHours" 
-                    name="Burnout Overtime (>6h)" 
+                    name="Extra Work (>6h)" 
                     fill="#f59e0b" 
                     stackId="a" 
                     radius={[4, 4, 0, 0]} 
@@ -1308,12 +1308,12 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
             <span><strong className="text-slate-800">{activeWeek.totalHours} hrs</strong> worked</span>
             <span>Target: <strong className="text-slate-800">{activeWeek.standardWeeklyBaseline} hrs</strong> (6 Workdays)</span>
             <span className={activeWeek.netBurnoutHours > 0 ? 'text-amber-700 font-bold' : 'text-emerald-700 font-bold'}>
-              {activeWeek.netBurnoutHours > 0 ? `Burnout: +${activeWeek.netBurnoutHours}h` : 'Balanced (0h Burnout)'}
+              {activeWeek.netBurnoutHours > 0 ? `Extra Work: +${activeWeek.netBurnoutHours}h` : 'Standard Hours (0h Extra Work)'}
             </span>
           </div>
         </div>
 
-        {/* Right: Weekly Capacity & Burnout / Peer Enablement Distribution Pie Chart (5 cols) */}
+        {/* Right: Weekly Capacity & Extra Work / Peer Enablement Distribution Pie Chart (5 cols) */}
         <div className="lg:col-span-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -1327,7 +1327,7 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
                   ? 'bg-amber-100 text-amber-800' 
                   : 'bg-emerald-100 text-emerald-800'
               }`}>
-                {activeWeek.netBurnoutHours > 0 ? 'Burnout Risk' : 'Healthy Load'}
+                {activeWeek.netBurnoutHours > 0 ? 'Extra Work Logged' : 'Standard Load'}
               </span>
             </div>
 
@@ -1379,7 +1379,7 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
                 <div className="flex items-center justify-between text-amber-700 font-bold text-xs">
                   <span className="flex items-center gap-1.5">
                     <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0" />
-                    <span>Burnout Overtime:</span>
+                    <span>Extra Work:</span>
                   </span>
                   <span>+{activeWeek.netBurnoutHours} hrs</span>
                 </div>
@@ -1409,10 +1409,10 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
           <div>
             <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
               <Clock className="h-4 w-4 text-sky-600" />
-              Daily Work & Burnout Log ({activeWeek.weekLabel} &bull; {activeMonth.monthName} {selectedYear})
+              Daily Work & Extra Work Log ({activeWeek.weekLabel} &bull; {activeMonth.monthName} {selectedYear})
             </h3>
             <p className="text-xs text-slate-500">
-              Each day has a 6-hour standard work time. See how much was worked and the burnout status.
+              Each day has a 6-hour standard work time. See how much was worked and the extra work status.
             </p>
           </div>
           <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-lg">
@@ -1428,7 +1428,7 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
                 <th className="py-3 px-3">Day & Date</th>
                 <th className="py-3 px-3">Standard Time</th>
                 <th className="py-3 px-3">Hours Worked</th>
-                <th className="py-3 px-3">Burnout / Overtime</th>
+                <th className="py-3 px-3">Extra Work / Overtime</th>
                 <th className="py-3 px-3">Status & Notes</th>
                 <th className="py-3 px-3 text-right">Action</th>
               </tr>
@@ -1694,7 +1694,7 @@ export const TrainerBurnoutWeeklyView: React.FC<TrainerBurnoutWeeklyViewProps> =
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
                     : 'bg-slate-50 border-slate-200 text-slate-700'
                 }`}>
-                  <span className="text-2xs opacity-75 font-bold uppercase block">Burnout / Variance</span>
+                  <span className="text-2xs opacity-75 font-bold uppercase block">Extra Work / Variance</span>
                   <span className="text-sm font-extrabold">
                     {inspectingDay.hoursLogged > 6.0 
                       ? `+${inspectingDay.burnoutHours} hrs` 

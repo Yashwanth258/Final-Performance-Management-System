@@ -197,7 +197,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onNavigate }
 
       if (weeklyBurnoutHours > 0) {
         pieData.push({
-          name: 'Burnout Overtime (>36h)',
+          name: 'Extra Work (>36h)',
           value: weeklyBurnoutHours,
           color: '#f59e0b', // amber-500
           percentStr: `${Math.round((weeklyBurnoutHours / totalWeeklyHours) * 100)}%`
@@ -642,8 +642,8 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onNavigate }
           value={`${currentWeekMetrics.totalWeeklyHours} / 36.0 hrs`}
           subtitle={
             currentWeekMetrics.isBurnout 
-              ? `+${currentWeekMetrics.weeklyBurnoutHours}h Burnout Overtime (${currentWeekMetrics.overtimeDaysCount}d over 6h)`
-              : `${currentWeekMetrics.remainingCapacity}h capacity left (0h Burnout)`
+              ? `+${currentWeekMetrics.weeklyBurnoutHours}h Extra Work (${currentWeekMetrics.overtimeDaysCount}d over 6h)`
+              : `${currentWeekMetrics.remainingCapacity}h capacity left (0h Extra Work)`
           }
           icon={currentWeekMetrics.isBurnout ? Flame : Clock}
           variant={currentWeekMetrics.isBurnout ? 'warning' : 'primary'}
@@ -860,9 +860,9 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onNavigate }
           </div>
         </div>
 
-        {/* Right: Weekly Workload & Burnout Hours Analytics (lg:col-span-5) */}
+        {/* Right: Weekly Workload & Extra Work Analytics (lg:col-span-5) */}
         <div className="lg:col-span-5 space-y-6">
-          {/* Weekly Workload & Burnout Hours Card (36h Target, Mon-Sat, Sunday Excluded) */}
+          {/* Weekly Workload & Extra Work Card (36h Target, Mon-Sat, Sunday Excluded) */}
           <div className="rounded-2xl border border-sky-200 bg-white p-5 shadow-xs space-y-4">
             <div className="flex items-start justify-between gap-3 border-b border-sky-100 pb-3.5">
               <div className="flex items-center gap-2.5">
@@ -879,7 +879,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onNavigate }
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">
-                    Weekly Workload & Burnout
+                    Weekly Workload & Extra Work
                   </h3>
                   <p className="text-2xs text-slate-500">
                     {currentWeekMetrics.dateRangeLabel} &bull; 36h Target
@@ -892,7 +892,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onNavigate }
                   ? 'bg-amber-100 text-amber-900 border-amber-300'
                   : 'bg-emerald-100 text-emerald-900 border-emerald-300'
               }`}>
-                {currentWeekMetrics.isBurnout ? 'Burnout Risk' : 'Healthy Load'}
+                {currentWeekMetrics.isBurnout ? 'Extra Work Logged' : 'Standard Pace'}
               </span>
             </div>
 
@@ -925,18 +925,18 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onNavigate }
                   currentWeekMetrics.isBurnout ? 'text-amber-800' : 'text-emerald-700'
                 }`}>
                   {currentWeekMetrics.isBurnout 
-                    ? `+${currentWeekMetrics.weeklyBurnoutHours}h Burnout Overtime` 
+                    ? `+${currentWeekMetrics.weeklyBurnoutHours}h Extra Work` 
                     : `${currentWeekMetrics.remainingCapacity}h capacity left`}
                 </span>
               </div>
             </div>
 
-            {/* Weekly Pie Graph: Standard 36h Target vs Burnout Hours */}
+            {/* Weekly Pie Graph: Standard 36h Target vs Extra Work Hours */}
             <div className="rounded-xl border border-sky-100 bg-linear-to-b from-sky-50/40 to-white p-3.5 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                   <PieIcon className="h-3.5 w-3.5 text-sky-600" />
-                  <span>Weekly Work & Burnout Ratio</span>
+                  <span>Weekly Work & Extra Work Ratio</span>
                 </span>
                 <span className="text-2xs font-bold text-sky-700 bg-sky-100/80 px-2 py-0.5 rounded-full">
                   6-Day Cycle
@@ -986,7 +986,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onNavigate }
                     <div className="flex items-center justify-between p-1.5 rounded-lg bg-amber-50 border border-amber-200">
                       <span className="flex items-center gap-1.5 font-bold text-amber-900">
                         <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0" />
-                        <span>Burnout Overtime (&gt;36h)</span>
+                        <span>Extra Work (&gt;36h)</span>
                       </span>
                       <span className="font-extrabold text-amber-900">+{currentWeekMetrics.weeklyBurnoutHours}h</span>
                     </div>
@@ -1001,7 +1001,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onNavigate }
                   )}
 
                   <p className="text-[10px] text-slate-500 leading-tight pt-0.5">
-                    *Formula: Overtime above 36.0 weekly standard is calculated as Burnout. Sundays (Day 7) excluded.
+                    *Formula: Hours logged above 36.0 weekly standard are calculated as Extra Work. Sundays (Day 7) excluded.
                   </p>
                 </div>
               </div>
@@ -1126,7 +1126,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onNavigate }
                 onClick={() => onNavigate('daily-work')}
                 className="rounded-xl border border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100 px-3 py-2 text-xs font-bold transition-colors text-center"
               >
-                Full Burnout Report →
+                Full Extra Work Report →
               </button>
             </div>
           </div>
@@ -1182,11 +1182,11 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onNavigate }
 
 
 
-      {/* Day Work & Burnout Detail Inspection Modal */}
+      {/* Day Work & Extra Work Detail Inspection Modal */}
       <Modal
         isOpen={!!inspectingDay}
         onClose={() => setInspectingDay(null)}
-        title={inspectingDay ? `${inspectingDay.dayName} Work & Workout Log` : 'Day Work Log'}
+        title={inspectingDay ? `${inspectingDay.dayName} Work & Log` : 'Day Work Log'}
         subtitle={inspectingDay ? `${inspectingDay.dateStr} • ${inspectingDay.hoursLogged} Hours Total` : ''}
       >
         {inspectingDay && (
@@ -1206,7 +1206,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onNavigate }
               <div className={`rounded-xl border p-2.5 ${
                 inspectingDay.isOvertime ? 'border-amber-300 bg-amber-100/70 text-amber-950' : 'border-emerald-200 bg-emerald-50 text-emerald-900'
               }`}>
-                <span className="text-[10px] font-bold uppercase block">Burnout Overtime</span>
+                <span className="text-[10px] font-bold uppercase block">Extra Work</span>
                 <span className="text-base font-black mt-0.5 block">
                   {inspectingDay.isOvertime ? `+${inspectingDay.extraHours}h` : '0h'}
                 </span>

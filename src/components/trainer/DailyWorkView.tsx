@@ -75,7 +75,7 @@ const DURATION_OPTIONS = [
   { value: 240, label: '4 hours / 240 mins' },
 ];
 
-// Reasons for extra hours worked / burnout cause dropdown
+// Reasons for extra hours worked / extra work dropdown
 const EXTRA_WORK_REASONS = [
   { value: 'Paper Evaluation', label: 'Paper Evaluation (Grading exams, tests & coding rubrics)' },
   { value: 'Exam Invigilation', label: 'Exam Invigilation & Proctoring Duty' },
@@ -1104,7 +1104,7 @@ export const DailyWorkView: React.FC = () => {
           percentStr: `${Math.round((standardHoursCompleted / (weekTotalHours || 36.0)) * 100)}%`
         },
         ...(netBurnoutHours > 0 ? [{ 
-          name: 'Burnout Overtime', 
+          name: 'Extra Work', 
           value: netBurnoutHours, 
           color: '#f59e0b',
           percentStr: `${Math.round((netBurnoutHours / weekTotalHours) * 100)}%`
@@ -1418,11 +1418,11 @@ export const DailyWorkView: React.FC = () => {
     return monthWeeksData[selectedWeekIndex] || monthWeeksData[0];
   }, [monthWeeksData, selectedWeekIndex]);
 
-  // Calculate Weekly Burnout & Workload Metrics (last 6 working days or current week)
+  // Calculate Weekly Extra Work & Workload Metrics (last 6 working days or current week)
   const weeklyMetrics = useMemo(() => {
     if (activeWeek) {
       const weeklyBurnoutStatus = activeWeek.netBurnoutHours > 0 
-        ? 'Elevated Burnout Risk' 
+        ? 'Extra Work Logged' 
         : 'Healthy Workload';
 
       return {
@@ -1445,7 +1445,7 @@ export const DailyWorkView: React.FC = () => {
 
     const burnoutDaysCount = recentUpdates.filter(u => (u.hoursLogged || 6) > 6).length;
     const weeklyBurnoutStatus = totalWeeklyHours > STANDARD_WORK_HOURS_PER_WEEK 
-      ? 'Elevated Burnout Risk' 
+      ? 'Extra Work Logged' 
       : 'Healthy Workload';
 
     return {
@@ -1664,7 +1664,7 @@ export const DailyWorkView: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
-              Daily Work & Instructor Burnout Tracking
+              Daily Work & Extra Work Tracking
             </h1>
             <span className="rounded-full bg-sky-100 text-sky-800 text-[11px] font-bold px-2.5 py-0.5 border border-sky-200">
               6 Hours / Day Baseline
@@ -1677,7 +1677,7 @@ export const DailyWorkView: React.FC = () => {
             )}
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Log daily classes (1 hour standard), practice sessions (1 hour standard), and track overtime hours worked over the 6h standard limit to prevent burnout. (1 submission per day policy).
+            Log daily classes (1 hour standard), practice sessions (1 hour standard), and track extra work hours logged over the 6h standard limit. (1 submission per day policy).
           </p>
         </div>
 
@@ -1820,7 +1820,7 @@ export const DailyWorkView: React.FC = () => {
         </div>
       )}
 
-      {/* Interactive Weekly Work & Burnout Analytics Module */}
+      {/* Interactive Weekly Work & Extra Work Analytics Module */}
       <div className="rounded-2xl border border-sky-200 bg-white p-5 shadow-xs space-y-5">
         {/* Module Header & Month Selector */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-sky-100 pb-4">
@@ -2235,7 +2235,7 @@ export const DailyWorkView: React.FC = () => {
           </div>
         )}
 
-        {/* WEEKLY WORKLOAD & BURNOUT CHART VIEW */}
+        {/* WEEKLY WORKLOAD & EXTRA WORK CHART VIEW */}
         {calendarDisplayMode === 'weekly' && (
           <>
             {/* Week Selector Tabs */}
@@ -2346,20 +2346,20 @@ export const DailyWorkView: React.FC = () => {
               </span>
             </div>
 
-            {/* Weekly Burnout / Overtime */}
+            {/* Weekly Extra Work */}
             <div className={`rounded-xl border p-3 text-center ${
               activeWeek.netBurnoutHours > 0
                 ? 'border-amber-300 bg-amber-50 text-amber-900'
                 : 'border-emerald-200 bg-emerald-50 text-emerald-900'
             }`}>
               <span className="text-2xs font-bold uppercase tracking-wider block">
-                Weekly Burnout
+                Weekly Extra Work
               </span>
               <span className="text-lg font-black mt-0.5 block">
-                {activeWeek.netBurnoutHours > 0 ? `+${activeWeek.netBurnoutHours} hrs Overtime` : '0.0 hrs (Balanced)'}
+                {activeWeek.netBurnoutHours > 0 ? `+${activeWeek.netBurnoutHours} hrs Extra Work` : '0.0 hrs (Standard)'}
               </span>
               <span className="text-2xs opacity-80 block">
-                {activeWeek.netBurnoutHours > 0 ? `${activeWeek.overtimeDaysCount} Overtime Days` : 'Zero Burnout (Healthy)'}
+                {activeWeek.netBurnoutHours > 0 ? `${activeWeek.overtimeDaysCount} Days with Extra Work` : 'Standard Hours (No Extra Work)'}
               </span>
             </div>
           </div>
@@ -2616,7 +2616,7 @@ export const DailyWorkView: React.FC = () => {
                       />
                       <Bar 
                         dataKey="burnoutHours" 
-                        name="Burnout Overtime (>6h)" 
+                        name="Extra Work (>6h)" 
                         fill="#f59e0b" 
                         stackId="a" 
                         radius={[4, 4, 0, 0]} 
@@ -2644,29 +2644,29 @@ export const DailyWorkView: React.FC = () => {
                 <span>Total Worked: <strong className="text-slate-800">{activeWeek.weekTotalHours} hrs</strong></span>
                 <span>Capacity: <strong className="text-slate-800">{activeWeek.standardWeeklyBaseline} hrs</strong></span>
                 <span className={activeWeek.netBurnoutHours > 0 ? 'text-amber-700 font-bold' : 'text-emerald-700 font-bold'}>
-                  {activeWeek.netBurnoutHours > 0 ? `Burnout: +${activeWeek.netBurnoutHours}h` : 'Balanced (Zero Burnout)'}
+                  {activeWeek.netBurnoutHours > 0 ? `Extra Work: +${activeWeek.netBurnoutHours}h` : 'Standard Hours (0h Extra Work)'}
                 </span>
               </div>
             </div>
 
-            {/* Right Graph: Weekly Burnout & Capacity Pie / Donut Chart (5 cols) */}
+            {/* Right Graph: Weekly Extra Work & Capacity Pie / Donut Chart (5 cols) */}
             <div className="lg:col-span-5 rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-sky-50/20 p-4 shadow-2xs flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                     <PieIcon className="h-4 w-4 text-sky-600" />
-                    <span>Weekly Capacity & Burnout Distribution</span>
+                    <span>Weekly Capacity & Extra Work Distribution</span>
                   </h3>
                   <span className={`text-2xs font-bold px-2 py-0.5 rounded-md ${
                     activeWeek.netBurnoutHours > 0 
                       ? 'bg-amber-100 text-amber-800' 
                       : 'bg-emerald-100 text-emerald-800'
                   }`}>
-                    {activeWeek.netBurnoutHours > 0 ? 'Burnout Risk' : 'Healthy Load'}
+                    {activeWeek.netBurnoutHours > 0 ? 'Extra Work Logged' : 'Standard Load'}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 mb-2">
-                  Distribution of standard hours, burnout overtime, and remaining capacity.
+                  Distribution of standard hours, extra work, and remaining capacity.
                 </p>
 
                 <div className="h-44 w-full relative flex items-center justify-center">
@@ -2713,7 +2713,7 @@ export const DailyWorkView: React.FC = () => {
                     <div className="flex items-center justify-between text-amber-700 font-bold text-[11px]">
                       <span className="flex items-center gap-1.5">
                         <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0" />
-                        <span>Burnout Overtime:</span>
+                        <span>Extra Work:</span>
                       </span>
                       <span>+{activeWeek.netBurnoutHours} hrs</span>
                     </div>
@@ -2738,14 +2738,14 @@ export const DailyWorkView: React.FC = () => {
           </div>
         )}
 
-        {/* Weekly Burnout Report Table (Day 1: Mon to Day 6: Sat) */}
+        {/* Weekly Extra Work Report Table (Day 1: Mon to Day 6: Sat) */}
         {activeWeek && (
           <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
               <div>
                 <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                   <Clock className="h-4 w-4 text-sky-600" />
-                  <span>Weekly Burnout Report &bull; {activeWeek.weekLabel} ({activeWeek.dateRangeLabel}, {selectedYear})</span>
+                  <span>Weekly Extra Work Report &bull; {activeWeek.weekLabel} ({activeWeek.dateRangeLabel}, {selectedYear})</span>
                 </h3>
                 <p className="text-[11px] text-slate-500">
                   Standard 6 working days from Monday (Day 1) to Saturday (Day 6). Sunday is a holiday.
@@ -2765,7 +2765,7 @@ export const DailyWorkView: React.FC = () => {
                     <th className="py-2.5 px-3">Working Day & Date</th>
                     <th className="py-2.5 px-3">Standard Limit</th>
                     <th className="py-2.5 px-3">Hours Logged</th>
-                    <th className="py-2.5 px-3">Burnout / Overtime</th>
+                    <th className="py-2.5 px-3">Extra Work / Overtime</th>
                     <th className="py-2.5 px-3">Tasks & Duties</th>
                     <th className="py-2.5 px-3 text-right">Action</th>
                   </tr>
@@ -2857,7 +2857,7 @@ export const DailyWorkView: React.FC = () => {
                           )}
                         </td>
 
-                        {/* Burnout / Overtime Status */}
+                        {/* Extra Work / Overtime Status */}
                         <td className="py-2.5 px-3">
                           {day.isMissedLog ? (
                             <span className="inline-flex items-center gap-1 rounded-md bg-rose-100 text-rose-900 border border-rose-300 px-2 py-0.5 text-2xs font-black">
@@ -3018,7 +3018,7 @@ export const DailyWorkView: React.FC = () => {
               No daily updates found
             </h3>
             <p className="mt-1 text-xs text-slate-500">
-              Submit your daily work update to record classes, practice sessions, tasks, and burnout hours.
+              Submit your daily work update to record classes, practice sessions, tasks, and extra work hours.
             </p>
             <button
               type="button"
@@ -3100,7 +3100,7 @@ export const DailyWorkView: React.FC = () => {
                       </span>
                     )}
 
-                    {/* Extra Hours & Burnout Callout */}
+                    {/* Extra Hours & Extra Work Callout */}
                     {!isLeave && (
                       extraHrs > 0 ? (
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-300 px-2.5 py-1 rounded-xl shadow-2xs">
@@ -3204,7 +3204,7 @@ export const DailyWorkView: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Additional Responsibilities & Extra Hours / Burnout Reason */}
+                  {/* Additional Responsibilities & Extra Hours / Extra Work Reason */}
                   <div className="rounded-xl bg-sky-50/50 p-3.5 border border-sky-100/80 flex flex-col justify-between">
                     <div>
                       <p className="font-bold text-sky-950 mb-1.5 flex items-center gap-1.5">

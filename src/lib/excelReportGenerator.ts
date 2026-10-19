@@ -304,7 +304,7 @@ export function buildInstructorReportData(
     const wRate = reqDays > 0 ? Number(((logDays + wLeaves) / reqDays * 100).toFixed(1)) : 100;
 
     let status = 'Balanced';
-    if (wOver > 0) status = `Burnout Overtime (+${wOver}h)`;
+    if (wOver > 0) status = `Extra Work (+${wOver}h)`;
     else if (wMissed > 0) status = `Deficit (${wMissed} Missed)`;
     else if (wLeaves > 0) status = `Leave Taken (${wLeaves}d)`;
 
@@ -422,7 +422,7 @@ export function exportIndividualInstructorExcel(
     ["EXECUTIVE PERFORMANCE & ATTENDANCE SUMMARY (KPIS)"],
     ["Total Calendar Days", totals.totalCalendarDays, "Required Working Days", totals.totalWorkingDays, "Days Logged", totals.daysLoggedCount],
     ["Submission Compliance Rate", `${totals.complianceRate}%`, "Total Work Hours Logged", `${totals.totalWorkHours} hrs`, "Standard Shift Hours (6h)", `${totals.totalStandardHours} hrs`],
-    ["Burnout / Overtime Hours", `${totals.totalOvertimeHours} hrs`, "Classes Conducted", totals.totalClasses, "Practice Sessions", totals.totalPractice],
+    ["Extra Work / Overtime Hours", `${totals.totalOvertimeHours} hrs`, "Classes Conducted", totals.totalClasses, "Practice Sessions", totals.totalPractice],
     ["Total Sessions Handled", totals.totalSessions, "Casual Leaves (CL)", totals.casualLeavesCount, "Sick Leaves (SL)", totals.sickLeavesCount],
     ["Unpaid Leaves (LOP)", totals.unpaidLeavesCount, "Total Leave Days Taken", totals.totalLeaveDays, "Missing Daily Logs Count", totals.missedLogsCount],
     ["Missing Work Hours Deficit", `${totals.missedHoursDeficit} hrs`, "Status Notice", totals.missedLogsCount > 0 ? "ATTENTION: Unsubmitted Worklogs Found" : "COMPLIANT: All Days Logged"],
@@ -516,7 +516,7 @@ export function exportIndividualInstructorExcel(
       "Logged Days",
       "Total Work Hours",
       "Standard Hours (≤36h)",
-      "Burnout Overtime (>36h)",
+      "Extra Work (>36h)",
       "Classes Conducted",
       "Practice Sessions",
       "Leaves Taken",
@@ -833,7 +833,7 @@ export function exportFullTeamIndividualReportsExcel(
       [],
       ["INSTRUCTOR KPIS & SUMMARY"],
       ["Required Working Days", r.totals.totalWorkingDays, "Days Logged", r.totals.daysLoggedCount, "Compliance Rate", `${r.totals.complianceRate}%`],
-      ["Total Hours Logged", `${r.totals.totalWorkHours} hrs`, "Standard Shift (6h)", `${r.totals.totalStandardHours} hrs`, "Overtime / Burnout", `${r.totals.totalOvertimeHours} hrs`],
+      ["Total Hours Logged", `${r.totals.totalWorkHours} hrs`, "Standard Shift (6h)", `${r.totals.totalStandardHours} hrs`, "Extra Work / Overtime", `${r.totals.totalOvertimeHours} hrs`],
       ["Classes Conducted", r.totals.totalClasses, "Practice Sessions", r.totals.totalPractice, "Total Sessions", r.totals.totalSessions],
       ["Casual Leaves (CL)", r.totals.casualLeavesCount, "Sick Leaves (SL)", r.totals.sickLeavesCount, "Unpaid Leaves (LOP)", r.totals.unpaidLeavesCount],
       ["Total Leave Days", r.totals.totalLeaveDays, "Missing Daily Logs", r.totals.missedLogsCount, "Deficit Hours", `${r.totals.missedHoursDeficit} hrs`],
