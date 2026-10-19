@@ -216,11 +216,26 @@ export const updateDailyUpdate = async (id: string, updates: Partial<DailyUpdate
   if (updates.hoursLogged !== undefined) payload.hours_logged = updates.hoursLogged;
   if (updates.tasksWorkedOn !== undefined) payload.tasks_worked_on = updates.tasksWorkedOn;
   if (updates.classesHandled !== undefined) payload.classes_handled = updates.classesHandled;
+  if (updates.classesCount !== undefined) payload.classes_count = updates.classesCount;
+  if (updates.classDurationMinutes !== undefined) payload.class_duration_minutes = updates.classDurationMinutes;
+  if (updates.totalClassesDurationMinutes !== undefined) payload.total_classes_duration_minutes = updates.totalClassesDurationMinutes;
+  if (updates.practiceSessionsCount !== undefined) payload.practice_sessions_count = updates.practiceSessionsCount;
+  if (updates.practiceDurationMinutes !== undefined) payload.practice_duration_minutes = updates.practiceDurationMinutes;
+  if (updates.totalPracticeDurationMinutes !== undefined) payload.total_practice_duration_minutes = updates.totalPracticeDurationMinutes;
+  if (updates.totalSessionsCount !== undefined) payload.total_sessions_count = updates.totalSessionsCount;
+  if (updates.sessionMinutesCalculated !== undefined) payload.session_minutes_calculated = updates.sessionMinutesCalculated;
+  if (updates.additionalCategory !== undefined) payload.additional_category = updates.additionalCategory;
   if (updates.paperEvaluationHours !== undefined) payload.paper_evaluation_hours = updates.paperEvaluationHours;
   if (updates.inServiceHours !== undefined) payload.in_service_hours = updates.inServiceHours;
   if (updates.calculatedTotalHours !== undefined) payload.calculated_total_hours = updates.calculatedTotalHours;
+  if (updates.standardWorkingHours !== undefined) payload.standard_working_hours = updates.standardWorkingHours;
+  if (updates.weeklyStandardHours !== undefined) payload.weekly_standard_hours = updates.weeklyStandardHours;
   if (updates.extraHoursWorked !== undefined) payload.extra_hours_worked = updates.extraHoursWorked;
   if (updates.burnoutRiskLevel !== undefined) payload.burnout_risk_level = updates.burnoutRiskLevel;
+  if (updates.extraWorkReason !== undefined) payload.extra_work_reason = updates.extraWorkReason;
+  if (updates.extraWorkDetails !== undefined) payload.extra_work_details = updates.extraWorkDetails;
+  if (updates.challengesOrBlockers !== undefined) payload.challenges_or_blockers = updates.challengesOrBlockers;
+  if (updates.remarks !== undefined) payload.remarks = updates.remarks;
 
   const { error } = await supabase
     .from('daily_updates')

@@ -175,7 +175,14 @@ export const IndividualPerformanceView: React.FC<IndividualPerformanceViewProps>
       severeBurnoutDays,
       peerHours: empHolisticMetrics.totalHours,
       peerSessions: empHolisticMetrics.totalSessions,
-      classesCompleted: empClasses.length,
+      classesCompleted: empLogs.reduce((sum, l) => {
+        const count = (l.classesCount != null && Number(l.classesCount) > 0)
+          ? Number(l.classesCount)
+          : (l.totalSessionsCount != null && Number(l.totalSessionsCount) > 0)
+          ? Number(l.totalSessionsCount)
+          : 0;
+        return sum + count;
+      }, 0) || empClasses.length,
       tasksCompleted: empTasks.filter(t => t.status === 'Completed').length,
       totalTasks: empTasks.length,
       activeProjects: empProjects.filter(p => p.status !== 'Completed').length,

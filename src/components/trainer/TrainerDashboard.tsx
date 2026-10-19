@@ -228,10 +228,46 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onNavigate }
     };
   }, [myDailyUpdates, todayStr]);
 
-  // Total hours delivered (sum of completed classes duration in hours)
+  // Total hours and sessions delivered (from daily work updates + completed scheduled classes)
   const completedClasses = myClasses.filter(c => c.status === 'Completed');
-  const totalMinutesDelivered = completedClasses.reduce((acc, curr) => acc + (curr.durationMinutes || 0), 0);
+
+  // Sum of delivered sessions from daily work logs
+  const dailyWorkSessionsCount = myDailyUpdates.reduce((sum, u) => {
+    const count = (u.classesCount != null && Number(u.classesCount) > 0)
+      ? Number(u.classesCount)
+      : (u.totalSessionsCount != null && Number(u.totalSessionsCount) > 0)
+      ? Number(u.totalSessionsCount)
+      : 0;
+    return sum + count;
+  }, 0);
+
+  // Total delivered sessions: strictly reflect daily work sessions if logged, or completed scheduled classes
+  const totalDeliveredSessionsCount = dailyWorkSessionsCount > 0
+    ? dailyWorkSessionsCount
+    : completedClasses.length;
+
+  // Total session minutes calculated from daily work logs
+  const dailyWorkSessionMinutes = myDailyUpdates.reduce((sum, u) => {
+    const mins = u.sessionMinutesCalculated 
+      || ((Number(u.totalClassesDurationMinutes) || 0) + (Number(u.totalPracticeDurationMinutes) || 0))
+      || ((Number(u.classesCount || 0) * (Number(u.classDurationMinutes) || 60)) + (Number(u.practiceSessionsCount || 0) * (Number(u.practiceDurationMinutes) || 60)));
+    return sum + mins;
+  }, 0);
+
+  const totalMinutesDelivered = dailyWorkSessionMinutes > 0
+    ? dailyWorkSessionMinutes
+    : completedClasses.reduce((acc, curr) => acc + (curr.durationMinutes || 0), 0);
+
   const totalHoursDelivered = (totalMinutesDelivered / 60).toFixed(1);
+
+  // Today's delivered sessions count from daily work log
+  const todaySessionsCount = todayUpdate
+    ? ((todayUpdate.classesCount != null && Number(todayUpdate.classesCount) > 0)
+        ? Number(todayUpdate.classesCount)
+        : (todayUpdate.totalSessionsCount != null && Number(todayUpdate.totalSessionsCount) > 0)
+        ? Number(todayUpdate.totalSessionsCount)
+        : 0)
+    : 0;
 
   // Tasks
   const tasksAssigned = myTasks.length;
@@ -590,7 +626,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onNavigate }
         <KpiCard
           title="Today's Work Log"
           value={todayUpdate ? `${todayHoursLogged} hrs` : 'Pending'}
-          subtitle={todayUpdate ? `${todayUpdate.classesCount || 0} class sessions` : 'No log submitted today'}
+          subtitle={todayUpdate ? `${todaySessionsCount} delivered ${todaySessionsCount === 1 ? 'session' : 'sessions'}` : 'No log submitted today'}
           icon={FileText}
           variant={todayUpdate ? 'primary' : 'warning'}
           onClick={() => onNavigate('daily-work')}
@@ -625,9 +661,13 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onNavigate }
         />
 
         <KpiCard
-          title="Delivered Classes"
-          value={`${completedClasses.length} Completed`}
-          subtitle={`${totalHoursDelivered} total hours delivered`}
+          title="Delivered Sessions"
+          value={`${totalDeliveredSessionsCount} Delivered`}
+          subtitle={
+            todaySessionsCount > 0
+              ? `${todaySessionsCount} sessions delivered today • ${totalHoursDelivered}h total`
+              : `${totalHoursDelivered} total hours delivered`
+          }
           icon={BookOpen}
           variant="primary"
           onClick={() => onNavigate('daily-work')}
@@ -688,7 +728,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onNavigate }
 
                   <div className="text-xs text-slate-700 space-y-1.5 pt-1">
                     <p>
-                      <strong className="text-slate-900">Class Sessions:</strong> {todayUpdate.classesCount || 0} classes delivered
+                      <strong className="text-slate-900">Delivered Sessions:</strong> {todaySessionsCount} {todaySessionsCount === 1 ? 'session' : 'sessions'} delivered
                     </p>
                     {todayUpdate.tasksWorkedOn && (
                       <p>
