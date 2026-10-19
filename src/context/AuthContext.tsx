@@ -272,7 +272,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // role='TRAINER', employee_id uppercase+trimmed, company_email lowercase+trimmed,
         // designation, subject, department, team_id, team_name (from selected dept),
         // manager_id=manager.uid, manager_name=manager.full_name, manager_email=manager.company_email, is_active=true.
-        // Manager selection is mandatory. Remove all auto-assign/fallback logic.
+        if (!data.location || !data.location.trim()) {
+          throw new Error('Work location is mandatory. Please enter your office or campus location.');
+        }
+
         if (!data.managerId || !data.managerName) {
           throw new Error('Manager selection is mandatory. Please select your reporting manager.');
         }
