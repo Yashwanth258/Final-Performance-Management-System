@@ -1,0 +1,8 @@
+{
+  "name": "Performance Management System",
+  "description": "Centralized enterprise performance management and burnout monitoring system for instructors and managers with multi-dimensional KPI tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
