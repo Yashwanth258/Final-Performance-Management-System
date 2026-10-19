@@ -176,12 +176,11 @@ export const IndividualPerformanceView: React.FC<IndividualPerformanceViewProps>
       peerHours: empHolisticMetrics.totalHours,
       peerSessions: empHolisticMetrics.totalSessions,
       classesCompleted: empLogs.reduce((sum, l) => {
-        const count = (l.classesCount != null && Number(l.classesCount) > 0)
-          ? Number(l.classesCount)
-          : (l.totalSessionsCount != null && Number(l.totalSessionsCount) > 0)
-          ? Number(l.totalSessionsCount)
-          : 0;
-        return sum + count;
+        const classes = Number(l.classesCount) || 0;
+        const practice = Number(l.practiceSessionsCount) || 0;
+        const combined = classes + practice;
+        if (combined > 0) return sum + combined;
+        return sum + (Number(l.totalSessionsCount) || 0);
       }, 0) || empClasses.length,
       tasksCompleted: empTasks.filter(t => t.status === 'Completed').length,
       totalTasks: empTasks.length,

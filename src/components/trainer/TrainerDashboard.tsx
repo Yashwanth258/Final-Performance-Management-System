@@ -231,17 +231,22 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onNavigate }
   // Total hours and sessions delivered (from daily work updates + completed scheduled classes)
   const completedClasses = myClasses.filter(c => c.status === 'Completed');
 
-  // Sum of delivered sessions from daily work logs
+  // Sum of delivered sessions from daily work logs (combining classes + practice sessions)
+  const dailyWorkClassesCount = myDailyUpdates.reduce((sum, u) => sum + (Number(u.classesCount) || 0), 0);
+  const dailyWorkPracticeCount = myDailyUpdates.reduce((sum, u) => sum + (Number(u.practiceSessionsCount) || 0), 0);
+
   const dailyWorkSessionsCount = myDailyUpdates.reduce((sum, u) => {
-    const count = (u.classesCount != null && Number(u.classesCount) > 0)
-      ? Number(u.classesCount)
-      : (u.totalSessionsCount != null && Number(u.totalSessionsCount) > 0)
-      ? Number(u.totalSessionsCount)
-      : 0;
-    return sum + count;
+    const classes = Number(u.classesCount) || 0;
+    const practice = Number(u.practiceSessionsCount) || 0;
+    const combined = classes + practice;
+    if (combined > 0) return sum + combined;
+    if (u.totalSessionsCount != null && Number(u.totalSessionsCount) > 0) {
+      return sum + Number(u.totalSessionsCount);
+    }
+    return sum;
   }, 0);
 
-  // Total delivered sessions: strictly reflect daily work sessions if logged, or completed scheduled classes
+  // Total delivered sessions: strictly reflect daily work sessions (classes + practice) if logged, or completed scheduled classes
   const totalDeliveredSessionsCount = dailyWorkSessionsCount > 0
     ? dailyWorkSessionsCount
     : completedClasses.length;
@@ -260,13 +265,13 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onNavigate }
 
   const totalHoursDelivered = (totalMinutesDelivered / 60).toFixed(1);
 
-  // Today's delivered sessions count from daily work log
-  const todaySessionsCount = todayUpdate
-    ? ((todayUpdate.classesCount != null && Number(todayUpdate.classesCount) > 0)
-        ? Number(todayUpdate.classesCount)
-        : (todayUpdate.totalSessionsCount != null && Number(todayUpdate.totalSessionsCount) > 0)
-        ? Number(todayUpdate.totalSessionsCount)
-        : 0)
+  // Today's delivered sessions count from daily work log (classes + practice sessions)
+  const todayClassesCount = Number(todayUpdate?.classesCount) || 0;
+  const todayPracticeCount = Number(todayUpdate?.practiceSessionsCount) || 0;
+  const todaySessionsCount = (todayClassesCount + todayPracticeCount) > 0
+    ? (todayClassesCount + todayPracticeCount)
+    : (todayUpdate?.totalSessionsCount != null && Number(todayUpdate.totalSessionsCount) > 0)
+    ? Number(todayUpdate.totalSessionsCount)
     : 0;
 
   // Tasks
@@ -665,7 +670,9 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onNavigate }
           value={`${totalDeliveredSessionsCount} Delivered`}
           subtitle={
             todaySessionsCount > 0
-              ? `${todaySessionsCount} sessions delivered today • ${totalHoursDelivered}h total`
+              ? `${todaySessionsCount} today (${todayClassesCount} classes + ${todayPracticeCount} practice) • ${totalHoursDelivered}h total`
+              : dailyWorkPracticeCount > 0
+              ? `${dailyWorkClassesCount} classes + ${dailyWorkPracticeCount} practice (${totalHoursDelivered}h total)`
               : `${totalHoursDelivered} total hours delivered`
           }
           icon={BookOpen}
@@ -729,6 +736,11 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onNavigate }
                   <div className="text-xs text-slate-700 space-y-1.5 pt-1">
                     <p>
                       <strong className="text-slate-900">Delivered Sessions:</strong> {todaySessionsCount} {todaySessionsCount === 1 ? 'session' : 'sessions'} delivered
+                      {todaySessionsCount > 0 && (
+                        <span className="text-slate-500 text-[11px] ml-1.5 font-normal">
+                          ({todayClassesCount} {todayClassesCount === 1 ? 'class' : 'classes'} + {todayPracticeCount} {todayPracticeCount === 1 ? 'practice session' : 'practice sessions'})
+                        </span>
+                      )}
                     </p>
                     {todayUpdate.tasksWorkedOn && (
                       <p>
