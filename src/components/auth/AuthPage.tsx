@@ -2757,7 +2757,7 @@ export const AuthPage: React.FC = () => {
 
       {/* Footer */}
       <footer className="w-full border-t border-sky-100 bg-white/90 px-6 py-4 text-center text-xs font-medium text-slate-500">
-        Performance Management System • Enterprise Talent & Training Operations
+        DailySync • Enterprise Talent & Training Operations
       </footer>
     </div>
   );

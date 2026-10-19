@@ -206,7 +206,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOpe
               <span>{isManager ? 'Manager Workspace' : 'Instructor Workspace'}</span>
             </div>
             <p className="text-[10px] text-sky-600/80 mt-0.5">
-              Performance Management System
+              DailySync
             </p>
           </div>
         </div>

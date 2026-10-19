@@ -20,7 +20,7 @@ export const NxtWaveLogo: React.FC<LogoProps> = ({
         </div>
         <div className="flex flex-col items-start leading-none">
           <span className="text-2xl font-black text-slate-900 tracking-tight">
-            Performance Management System
+            DailySync
           </span>
           {showTagline && (
             <span className="text-xs font-semibold text-slate-500 mt-1">
@@ -39,7 +39,7 @@ export const NxtWaveLogo: React.FC<LogoProps> = ({
           <Layers className="h-4 w-4 stroke-[2.2]" />
         </div>
         <span className="text-sm font-bold text-slate-900 tracking-tight">
-          Performance Management System
+          DailySync
         </span>
       </div>
     );
@@ -52,7 +52,7 @@ export const NxtWaveLogo: React.FC<LogoProps> = ({
           <Layers className="h-5 w-5 stroke-[2.2]" />
         </div>
         <span className="text-lg font-bold text-slate-900 tracking-tight">
-          Performance Management System
+          DailySync
         </span>
       </div>
     );
@@ -65,7 +65,7 @@ export const NxtWaveLogo: React.FC<LogoProps> = ({
         <Layers className="h-4.5 w-4.5 stroke-[2.2]" />
       </div>
       <span className="text-base font-bold text-slate-900 tracking-tight">
-        Performance Management System
+        DailySync
       </span>
     </div>
   );

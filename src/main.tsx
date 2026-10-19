@@ -28,7 +28,7 @@ if (typeof window !== 'undefined' && window.localStorage) {
 // Developer Attribution & System Watermark (Discreet Console Signature)
 if (typeof window !== 'undefined') {
   console.log(
-    `%c 🚀 Final Performance Management System %c\n` +
+    `%c 🚀 DailySync %c\n` +
     `%c • Architect & Lead Engineer : Nuthi Yashwanth (@Yashwanth258)\n` +
     `%c • GitHub Repository          : https://github.com/Yashwanth258/Final-Performance-Management-System\n` +
     `%c • Tech Stack                 : React 19 • TypeScript • Tailwind CSS • Vite • Supabase PostgreSQL\n` +

@@ -408,7 +408,7 @@ export function exportIndividualInstructorExcel(
     Subject: "Technical Talent Operations",
     Author: "Nuthi Yashwanth",
     Company: "Engineered by Nuthi Yashwanth",
-    Comments: "Final Performance Management System • Developed by Nuthi Yashwanth (@Yashwanth258)"
+    Comments: "DailySync • Developed by Nuthi Yashwanth (@Yashwanth258)"
   };
 
   // 1. Sheet 1: Daily Work & Attendance Log
@@ -680,7 +680,7 @@ export function exportFullTeamIndividualReportsExcel(
     Subject: "Technical Talent Operations",
     Author: "Nuthi Yashwanth",
     Company: "Engineered by Nuthi Yashwanth",
-    Comments: "Final Performance Management System • Developed by Nuthi Yashwanth (@Yashwanth258)"
+    Comments: "DailySync • Developed by Nuthi Yashwanth (@Yashwanth258)"
   };
 
   // Process data for every instructor
