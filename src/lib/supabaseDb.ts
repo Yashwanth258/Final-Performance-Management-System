@@ -159,6 +159,48 @@ export const fetchDailyUpdates = async (): Promise<DailyUpdate[]> => {
     challengesOrBlockers: d.challenges_or_blockers,
     remarks: d.remarks,
     hoursLogged: Number(d.hours_logged) || 6,
+    isHoliday: Boolean(
+      (d as any).is_holiday ||
+      d.leave_type === 'HOLIDAY' ||
+      (d.tasks_worked_on && d.tasks_worked_on.toLowerCase().includes('[holiday]')) ||
+      (d.classes_handled && d.classes_handled.toLowerCase().includes('(holiday'))
+    ),
+    holidayName: (d as any).holiday_name || (
+      (d.tasks_worked_on && d.tasks_worked_on.toLowerCase().includes('[holiday]'))
+        ? d.tasks_worked_on.replace(/^\[Holiday\]\s*/i, '').trim()
+        : (d.classes_handled && d.classes_handled.includes('(Holiday: ')
+          ? d.classes_handled.split('(Holiday: ')[1].replace(/\)$/, '').trim()
+          : '')
+    ),
+    isLeave: Boolean(
+      (d as any).is_leave ||
+      (!Boolean((d as any).is_holiday || d.leave_type === 'HOLIDAY' || (d.tasks_worked_on && d.tasks_worked_on.toLowerCase().includes('[holiday]')) || (d.classes_handled && d.classes_handled.toLowerCase().includes('(holiday'))) && (
+        (d.tasks_worked_on && (
+          d.tasks_worked_on.toLowerCase().includes('casual leave') ||
+          d.tasks_worked_on.toLowerCase().includes('sick leave') ||
+          d.tasks_worked_on.toLowerCase().includes('unpaid leave') ||
+          d.tasks_worked_on.toLowerCase().includes('authorized leave') ||
+          d.tasks_worked_on.toLowerCase().includes('on leave')
+        )) ||
+        (d.classes_handled && (
+          d.classes_handled.toLowerCase().includes('casual leave') ||
+          d.classes_handled.toLowerCase().includes('sick leave') ||
+          d.classes_handled.toLowerCase().includes('unpaid leave')
+        ))
+      ))
+    ),
+    leaveType: ((d as any).leave_type || (
+      (Boolean((d as any).is_holiday || d.leave_type === 'HOLIDAY' || (d.tasks_worked_on && d.tasks_worked_on.toLowerCase().includes('[holiday]')) || (d.classes_handled && d.classes_handled.toLowerCase().includes('(holiday'))))
+        ? 'HOLIDAY'
+        : (d.tasks_worked_on && d.tasks_worked_on.toLowerCase().includes('sick leave'))
+        ? 'SICK_LEAVE'
+        : (d.tasks_worked_on && d.tasks_worked_on.toLowerCase().includes('unpaid leave'))
+        ? 'UNPAID_LEAVE'
+        : (d.tasks_worked_on && d.tasks_worked_on.toLowerCase().includes('casual leave'))
+        ? 'CASUAL_LEAVE'
+        : 'NONE'
+    )) as any,
+    leaveReason: (d as any).leave_reason || '',
     createdAt: d.created_at,
     updatedAt: d.updated_at,
   }));

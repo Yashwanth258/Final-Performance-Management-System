@@ -10,6 +10,8 @@ export interface InstructorReportDayRecord {
   isPreRegistration: boolean;
   isFuture: boolean;
   isMissedLog: boolean;
+  isHoliday?: boolean;
+  holidayName?: string;
   isLeave: boolean;
   leaveType: string;
   leaveTypeLabel: string;
@@ -144,12 +146,28 @@ export function buildInstructorReportData(
     // Matching live classes
     const dayClasses = instructorClasses.filter(c => (c.date || '').split('T')[0] === dateStr && c.status !== 'Cancelled');
 
-    const isMissedLog = isPastDay && !isSunday && !isPreReg && !log;
-    const isLeave = Boolean(log?.isLeave && log?.leaveType !== 'NONE');
-    const leaveType = isLeave ? (log?.leaveType || 'CASUAL_LEAVE') : 'NONE';
-    const leaveReason = isLeave ? (log?.leaveReason || '') : '';
+    const isHoliday = Boolean(
+      log?.isHoliday ||
+      log?.leaveType === 'HOLIDAY' ||
+      (log?.classesHandled && log.classesHandled.includes('(Holiday')) ||
+      (log?.tasksWorkedOn && log.tasksWorkedOn.startsWith('[Holiday]'))
+    );
+    const holidayName = log?.holidayName || (
+      isHoliday && log?.tasksWorkedOn && log.tasksWorkedOn.startsWith('[Holiday]')
+        ? log.tasksWorkedOn.replace(/^\[Holiday\]\s*/i, '').trim()
+        : (log?.classesHandled && log.classesHandled.includes('(Holiday: ')
+          ? log.classesHandled.split('(Holiday: ')[1].replace(/\)$/, '').trim()
+          : 'Holiday')
+    );
 
-    const leaveTypeLabel = leaveType === 'CASUAL_LEAVE'
+    const isMissedLog = isPastDay && !isSunday && !isPreReg && !log;
+    const isLeave = !isHoliday && Boolean(log?.isLeave && log?.leaveType !== 'NONE');
+    const leaveType = isHoliday ? 'HOLIDAY' : (isLeave ? (log?.leaveType || 'CASUAL_LEAVE') : 'NONE');
+    const leaveReason = isHoliday ? holidayName : (isLeave ? (log?.leaveReason || '') : '');
+
+    const leaveTypeLabel = isHoliday
+      ? `Holiday (${holidayName})`
+      : leaveType === 'CASUAL_LEAVE'
       ? 'Casual Leave (CL)'
       : leaveType === 'SICK_LEAVE'
       ? 'Sick Leave (SL)'
@@ -167,6 +185,12 @@ export function buildInstructorReportData(
       hoursLogged = 0;
       standardHours = 0;
       overtimeHours = 0;
+    } else if (isHoliday) {
+      hoursLogged = Number(log?.holidayHours ?? log?.hoursLogged ?? 0);
+      standardHours = hoursLogged;
+      overtimeHours = 0;
+      classesCount = 0;
+      practiceSessionsCount = 0;
     } else if (isLeave) {
       hoursLogged = leaveType === 'UNPAID_LEAVE' ? 0 : 6.0;
       standardHours = leaveType === 'UNPAID_LEAVE' ? 0 : 6.0;
@@ -189,6 +213,8 @@ export function buildInstructorReportData(
     let statusText = 'Normal Workday';
     if (isMissedLog) {
       statusText = 'Missed Daily Log (6h Deficit)';
+    } else if (isHoliday) {
+      statusText = `Official Holiday: ${holidayName}`;
     } else if (isLeave) {
       statusText = `Taken Leave: ${leaveTypeLabel}`;
     } else if (log) {
@@ -205,15 +231,19 @@ export function buildInstructorReportData(
       statusText = 'Non-Working Day';
     }
 
-    const additionalDuties = isLeave 
+    const additionalDuties = isHoliday
+      ? `Holiday: ${holidayName}`
+      : isLeave 
       ? 'None (On Leave)' 
       : (log?.additionalResponsibilities || log?.additionalCategory || 'None');
 
-    const tasksWorkedOn = isLeave 
+    const tasksWorkedOn = isHoliday
+      ? (log?.tasksWorkedOn || `[Holiday] ${holidayName}`)
+      : isLeave 
       ? `[${leaveTypeLabel}] ${leaveReason || 'Authorized Leave'}` 
       : (log?.tasksWorkedOn || (classesCount > 0 ? `${classesCount} Classes conducted` : ''));
 
-    const remarks = isLeave ? leaveReason : (log?.remarks || log?.extraWorkDetails || '');
+    const remarks = isHoliday ? `Official Holiday: ${holidayName}` : (isLeave ? leaveReason : (log?.remarks || log?.extraWorkDetails || ''));
 
     return {
       dateStr,
@@ -224,6 +254,8 @@ export function buildInstructorReportData(
       isPreRegistration: isPreReg,
       isFuture,
       isMissedLog,
+      isHoliday,
+      holidayName,
       isLeave,
       leaveType,
       leaveTypeLabel,

@@ -119,8 +119,11 @@ export interface DailyUpdate {
   invigilationHours?: number;
   invigilationDetails?: string;
   isLeave?: boolean;
-  leaveType?: 'CASUAL_LEAVE' | 'SICK_LEAVE' | 'UNPAID_LEAVE' | 'NONE';
+  leaveType?: 'CASUAL_LEAVE' | 'SICK_LEAVE' | 'UNPAID_LEAVE' | 'HOLIDAY' | 'NONE';
   leaveReason?: string;
+  isHoliday?: boolean;
+  holidayName?: string;
+  holidayHours?: number;
   calculatedTotalHours?: number;
   standardWorkingHours?: number; // default 6 hours/day
   weeklyStandardHours?: number; // default 36 hours/week (6 days * 6 hours)

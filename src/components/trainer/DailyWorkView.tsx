@@ -199,8 +199,13 @@ export const DailyWorkView: React.FC = () => {
     inServHrs: number,
     invigHrs: number = 0,
     isLeaveVal: boolean = false,
-    leaveTypeVal: string = 'NONE'
+    leaveTypeVal: string = 'NONE',
+    isHolidayVal: boolean = false,
+    holidayHoursVal: number = 0
   ) => {
+    if (isHolidayVal || leaveTypeVal === 'HOLIDAY') {
+      return Number(holidayHoursVal || 0);
+    }
     if (isLeaveVal) {
       return leaveTypeVal === 'UNPAID_LEAVE' ? 0 : STANDARD_WORK_HOURS_PER_DAY;
     }
@@ -229,8 +234,11 @@ export const DailyWorkView: React.FC = () => {
     invigilationHours: 2.0,
     invigilationDetails: '',
     isLeave: false,
-    leaveType: 'NONE' as 'CASUAL_LEAVE' | 'SICK_LEAVE' | 'UNPAID_LEAVE' | 'NONE',
+    leaveType: 'NONE' as 'CASUAL_LEAVE' | 'SICK_LEAVE' | 'UNPAID_LEAVE' | 'HOLIDAY' | 'NONE',
     leaveReason: '',
+    isHoliday: false,
+    holidayName: 'Public / Company Holiday',
+    holidayHours: 0,
     hoursLogged: 2, // Auto calculated (1 class * 1 hr + 1 practice * 1 hr = 2 hrs)
     extraWorkReason: 'Paper Evaluation',
     extraWorkDetails: '',
@@ -525,6 +533,75 @@ export const DailyWorkView: React.FC = () => {
     });
   };
 
+  const updateHolidayMode = (isHoliday: boolean, name: string = 'Public / Company Holiday', hours: number = 0) => {
+    setFormData(prev => {
+      if (!isHoliday) {
+        const defaultClasses = prev.classesCount > 0 ? prev.classesCount : 1;
+        const defaultPractice = prev.practiceSessionsCount > 0 ? prev.practiceSessionsCount : 1;
+        const calculated = computeTotalHours(
+          defaultClasses,
+          prev.classDurationMinutes || 60,
+          defaultPractice,
+          prev.practiceDurationMinutes || 60,
+          prev.additionalCategory,
+          prev.paperEvaluationHours,
+          prev.inServiceHours,
+          prev.invigilationHours,
+          false,
+          'NONE',
+          false,
+          0
+        );
+        return {
+          ...prev,
+          isHoliday: false,
+          holidayName: '',
+          holidayHours: 0,
+          isLeave: false,
+          leaveType: 'NONE',
+          leaveReason: '',
+          tasksWorkedOn: cleanTasksForWorkday(prev.tasksWorkedOn),
+          classesCount: defaultClasses,
+          practiceSessionsCount: defaultPractice,
+          hoursLogged: calculated
+        };
+      } else {
+        return {
+          ...prev,
+          isHoliday: true,
+          holidayName: name,
+          holidayHours: hours,
+          isLeave: false,
+          leaveType: 'HOLIDAY',
+          leaveReason: '',
+          classesCount: 0,
+          practiceSessionsCount: 0,
+          tasksWorkedOn: `[Holiday] ${name}`,
+          hoursLogged: hours
+        };
+      }
+    });
+  };
+
+  const handleDayStatusChange = (status: string) => {
+    if (status === 'HOLIDAY') {
+      updateHolidayMode(true, formData.holidayName || 'Public / Company Holiday', formData.holidayHours || 0);
+    } else if (status === 'CASUAL_LEAVE') {
+      setFormData(prev => ({ ...prev, isHoliday: false, holidayName: '', holidayHours: 0 }));
+      updateLeaveMode(true, 'CASUAL_LEAVE');
+    } else if (status === 'SICK_LEAVE') {
+      setFormData(prev => ({ ...prev, isHoliday: false, holidayName: '', holidayHours: 0 }));
+      updateLeaveMode(true, 'SICK_LEAVE');
+    } else if (status === 'UNPAID_LEAVE') {
+      setFormData(prev => ({ ...prev, isHoliday: false, holidayName: '', holidayHours: 0 }));
+      updateLeaveMode(true, 'UNPAID_LEAVE');
+    } else {
+      // Normal Working Day
+      updateHolidayMode(false);
+      updateLeaveMode(false, 'NONE');
+    }
+  };
+
   const updateLeaveMode = (isLeave: boolean, leaveType: 'CASUAL_LEAVE' | 'SICK_LEAVE' | 'UNPAID_LEAVE' | 'NONE' = 'CASUAL_LEAVE') => {
     setFormData(prev => {
       if (!isLeave) {
@@ -540,7 +617,9 @@ export const DailyWorkView: React.FC = () => {
           prev.inServiceHours,
           prev.invigilationHours,
           false,
-          'NONE'
+          'NONE',
+          false,
+          0
         );
         return {
           ...prev,
@@ -556,6 +635,9 @@ export const DailyWorkView: React.FC = () => {
         const calculated = leaveType === 'UNPAID_LEAVE' ? 0 : STANDARD_WORK_HOURS_PER_DAY;
         return {
           ...prev,
+          isHoliday: false,
+          holidayName: '',
+          holidayHours: 0,
           isLeave: true,
           leaveType: leaveType !== 'NONE' ? leaveType : 'CASUAL_LEAVE',
           hoursLogged: calculated
@@ -583,7 +665,9 @@ export const DailyWorkView: React.FC = () => {
     : 0;
 
   const totalAdditionalHours = paperEvalHrs + inServiceHrs + invigilationHrs;
-  const rawWorkHoursToday = formData.isLeave 
+  const rawWorkHoursToday = formData.isHoliday
+    ? Number(formData.holidayHours || 0)
+    : formData.isLeave 
     ? (formData.leaveType === 'UNPAID_LEAVE' ? 0 : STANDARD_WORK_HOURS_PER_DAY)
     : (totalTeachingHoursDecimal + totalAdditionalHours);
   const totalWorkHoursToday = Number(Math.min(MAX_WORK_HOURS_PER_DAY, Math.max(0, rawWorkHoursToday)).toFixed(2));
@@ -663,16 +747,30 @@ export const DailyWorkView: React.FC = () => {
   // Open modal in Edit Mode for a specific update
   const openEditModal = (update: DailyUpdate) => {
     setEditingUpdateId(update.id);
-    const isLeave = !!update.isLeave && update.leaveType !== 'NONE';
-    const leaveType = isLeave ? (update.leaveType || 'NONE') : 'NONE';
+    const isHoliday = Boolean(
+      update.isHoliday ||
+      update.leaveType === 'HOLIDAY' ||
+      (update.classesHandled && update.classesHandled.includes('(Holiday')) ||
+      (update.tasksWorkedOn && update.tasksWorkedOn.startsWith('[Holiday]'))
+    );
+    const holidayName = update.holidayName || (
+      isHoliday && update.tasksWorkedOn && update.tasksWorkedOn.startsWith('[Holiday]')
+        ? update.tasksWorkedOn.replace(/^\[Holiday\]\s*/i, '').trim()
+        : (update.classesHandled && update.classesHandled.includes('(Holiday: ')
+          ? update.classesHandled.split('(Holiday: ')[1].replace(/\)$/, '').trim()
+          : 'Public / Company Holiday')
+    );
+    const holidayHours = isHoliday ? (Number(update.hoursLogged) || 0) : 0;
+    const isLeave = !isHoliday && (!!update.isLeave && update.leaveType !== 'NONE');
+    const leaveType = isHoliday ? 'HOLIDAY' : (isLeave ? (update.leaveType || 'NONE') : 'NONE');
     const leaveReason = isLeave ? (update.leaveReason || '') : '';
 
     const savedClasses = update.classesCount !== undefined ? update.classesCount : (parseInt(update.classesHandled) || 0);
-    // If it was a leave day, savedClasses was saved as 0. Give a default of 1 so if converted to a working day, instructor has working day controls ready
-    const cCount = isLeave ? (savedClasses > 0 ? savedClasses : 1) : savedClasses;
+    // If it was a leave or holiday day, savedClasses was saved as 0. Give a default of 1 so if converted to a working day, instructor has working day controls ready
+    const cCount = (isLeave || isHoliday) ? (savedClasses > 0 ? savedClasses : 1) : savedClasses;
 
     const savedPractice = update.practiceSessionsCount !== undefined ? update.practiceSessionsCount : (parseInt(update.projectUpdates || '') || 0);
-    const pCount = isLeave ? (savedPractice > 0 ? savedPractice : 1) : savedPractice;
+    const pCount = (isLeave || isHoliday) ? (savedPractice > 0 ? savedPractice : 1) : savedPractice;
 
     const cDuration = update.classDurationMinutes || 60;
     const pDuration = update.practiceDurationMinutes || 60;
@@ -708,7 +806,9 @@ export const DailyWorkView: React.FC = () => {
       update.inServiceHours || 1.0,
       update.invigilationHours || 2.0,
       isLeave,
-      leaveType
+      leaveType,
+      isHoliday,
+      holidayHours
     );
 
     setFormData({
@@ -717,7 +817,7 @@ export const DailyWorkView: React.FC = () => {
       classDurationMinutes: cDuration,
       practiceSessionsCount: pCount,
       practiceDurationMinutes: pDuration,
-      tasksWorkedOn: isLeave ? '' : initialTasks,
+      tasksWorkedOn: isHoliday ? (update.tasksWorkedOn || `[Holiday] ${holidayName}`) : (isLeave ? '' : initialTasks),
       additionalCategory: addCat,
       paperEvaluationHours: update.paperEvaluationHours || 1.0,
       inServiceHours: update.inServiceHours || 1.0,
@@ -726,6 +826,9 @@ export const DailyWorkView: React.FC = () => {
       isLeave,
       leaveType,
       leaveReason,
+      isHoliday,
+      holidayName,
+      holidayHours,
       hoursLogged: update.hoursLogged !== undefined ? update.hoursLogged : calculatedHrs,
       extraWorkReason: update.extraWorkReason || 'Paper Evaluation',
       extraWorkDetails: update.extraWorkDetails || update.remarks || '',
@@ -968,13 +1071,27 @@ export const DailyWorkView: React.FC = () => {
         const isAfterReg = !userRegDateStr || dateStr >= userRegDateStr;
         const isMissedLog = isPastDay && isAfterReg && !match;
 
-        const isLeave = !!match?.isLeave;
-        const leaveType = match?.leaveType || 'NONE';
-        const leaveReason = match?.leaveReason || '';
+        const isHoliday = Boolean(
+          match?.isHoliday ||
+          match?.leaveType === 'HOLIDAY' ||
+          (match?.classesHandled && match.classesHandled.includes('(Holiday')) ||
+          (match?.tasksWorkedOn && match.tasksWorkedOn.startsWith('[Holiday]'))
+        );
+        const holidayName = match?.holidayName || (
+          isHoliday && match?.tasksWorkedOn && match.tasksWorkedOn.startsWith('[Holiday]')
+            ? match.tasksWorkedOn.replace(/^\[Holiday\]\s*/i, '').trim()
+            : (match?.classesHandled && match.classesHandled.includes('(Holiday: ')
+              ? match.classesHandled.split('(Holiday: ')[1].replace(/\)$/, '').trim()
+              : 'Holiday')
+        );
+
+        const isLeave = !isHoliday && !!match?.isLeave;
+        const leaveType = match?.leaveType || (isHoliday ? 'HOLIDAY' : 'NONE');
+        const leaveReason = match?.leaveReason || (isHoliday ? holidayName : '');
 
         let hoursLogged = 0;
         if (match) {
-          hoursLogged = Number(match.hoursLogged ?? match.calculatedTotalHours ?? (isLeave ? 6 : 0));
+          hoursLogged = Number(match.hoursLogged ?? match.calculatedTotalHours ?? (isLeave ? 6 : (isHoliday ? (match.holidayHours ?? 0) : 0)));
         }
 
         let standardHours = 0;
@@ -985,6 +1102,8 @@ export const DailyWorkView: React.FC = () => {
         if (isMissedLog) {
           // Missed Log: user forgot to fill log on previous workday - show full 6 hours in red!
           missedHours = 6.0;
+        } else if (isHoliday) {
+          standardHours = hoursLogged;
         } else if (isLeave) {
           // Leave day: Casual, Sick, or Unpaid Leave - represent with 6.0h distinct bar (purple)
           leaveHours = 6.0;
@@ -994,7 +1113,7 @@ export const DailyWorkView: React.FC = () => {
         }
 
         const displayTotalHours = isMissedLog ? 6.0 : (isLeave ? leaveHours : hoursLogged);
-        const extraHours = isLeave ? 0 : (match ? (match.extraHoursWorked !== undefined ? match.extraHoursWorked : Math.max(0, hoursLogged - 6.0)) : 0);
+        const extraHours = (isLeave || isHoliday) ? 0 : (match ? (match.extraHoursWorked !== undefined ? match.extraHoursWorked : Math.max(0, hoursLogged - 6.0)) : 0);
         const isOvertime = burnoutHours > 0;
         const classesCount = match?.classesCount !== undefined ? match.classesCount : dayClasses.length;
 
@@ -1025,6 +1144,8 @@ export const DailyWorkView: React.FC = () => {
           isOvertime,
           hasLog: !!match,
           isMissedLog,
+          isHoliday,
+          holidayName,
           isLeave,
           leaveType,
           leaveReason,
@@ -1170,6 +1291,8 @@ export const DailyWorkView: React.FC = () => {
       isLeave: boolean;
       leaveType: string;
       leaveReason: string;
+      isHoliday: boolean;
+      holidayName: string;
       hoursLogged: number;
       classesCount: number;
       practiceCount: number;
@@ -1202,6 +1325,8 @@ export const DailyWorkView: React.FC = () => {
         isLeave: false,
         leaveType: 'NONE',
         leaveReason: '',
+        isHoliday: false,
+        holidayName: '',
         hoursLogged: 0,
         classesCount: 0,
         practiceCount: 0,
@@ -1230,14 +1355,28 @@ export const DailyWorkView: React.FC = () => {
       const isWithinGrace = diffDays <= 7 && diffDays > 0;
       const remainingGraceDays = Math.max(0, 7 - diffDays);
 
+      const isHoliday = Boolean(
+        match?.isHoliday || 
+        match?.leaveType === 'HOLIDAY' || 
+        (match?.classesHandled && match.classesHandled.includes('(Holiday')) || 
+        (match?.tasksWorkedOn && match.tasksWorkedOn.startsWith('[Holiday]'))
+      );
+      const holidayName = match?.holidayName || (
+        isHoliday && match?.tasksWorkedOn && match.tasksWorkedOn.startsWith('[Holiday]')
+          ? match.tasksWorkedOn.replace(/^\[Holiday\]\s*/i, '').trim()
+          : (match?.classesHandled && match.classesHandled.includes('(Holiday: ')
+            ? match.classesHandled.split('(Holiday: ')[1].replace(/\)$/, '').trim()
+            : 'Holiday')
+      );
+
       const isMissed = isPastDay && !isSunday && !isPreReg && !match;
-      const isLeave = !!match?.isLeave;
-      const leaveType = match?.leaveType || 'NONE';
-      const leaveReason = match?.leaveReason || '';
-      const hoursLogged = match ? Number(match.hoursLogged ?? match.calculatedTotalHours ?? (isLeave ? 6 : 0)) : 0;
+      const isLeave = !isHoliday && (!!match?.isLeave || (match?.leaveType && match.leaveType !== 'NONE' && match.leaveType !== 'HOLIDAY'));
+      const leaveType = match?.leaveType || (isHoliday ? 'HOLIDAY' : 'NONE');
+      const leaveReason = match?.leaveReason || (isHoliday ? holidayName : '');
+      const hoursLogged = match ? Number(match.hoursLogged ?? match.calculatedTotalHours ?? (isLeave ? 6 : (isHoliday ? (match.holidayHours ?? 0) : 0))) : 0;
       const classesCount = match?.classesCount !== undefined ? match.classesCount : dayClasses.length;
       const practiceCount = match?.practiceSessionsCount || 0;
-      const extraHours = isLeave ? 0 : Math.max(0, hoursLogged - 6);
+      const extraHours = (isLeave || isHoliday) ? 0 : Math.max(0, hoursLogged - 6);
       const isOvertime = extraHours > 0;
 
       cells.push({
@@ -1257,6 +1396,8 @@ export const DailyWorkView: React.FC = () => {
         isLeave,
         leaveType,
         leaveReason,
+        isHoliday,
+        holidayName,
         hoursLogged,
         classesCount,
         practiceCount,
@@ -1291,6 +1432,8 @@ export const DailyWorkView: React.FC = () => {
           isLeave: false,
           leaveType: 'NONE',
           leaveReason: '',
+          isHoliday: false,
+          holidayName: '',
           hoursLogged: 0,
           classesCount: 0,
           practiceCount: 0,
@@ -1500,8 +1643,9 @@ export const DailyWorkView: React.FC = () => {
       return;
     }
 
-    const isLeaveCheck = !!formData.isLeave && formData.leaveType !== 'NONE';
-    if (!isLeaveCheck && !cleanTasksForWorkday(formData.tasksWorkedOn).trim()) {
+    const isHolidayCheck = !!formData.isHoliday || formData.leaveType === 'HOLIDAY';
+    const isLeaveCheck = !isHolidayCheck && !!formData.isLeave && formData.leaveType !== 'NONE';
+    if (!isLeaveCheck && !isHolidayCheck && !cleanTasksForWorkday(formData.tasksWorkedOn).trim()) {
       addToast({
         title: 'Mandatory Field Missing',
         message: 'Tasks Completed Today is mandatory. Please describe what was completed or learned today.',
@@ -1513,10 +1657,14 @@ export const DailyWorkView: React.FC = () => {
 
     setSaving(true);
     try {
-      const isLeave = !!formData.isLeave && formData.leaveType !== 'NONE';
-      const leaveType = isLeave ? formData.leaveType : 'NONE';
-      const leaveReason = isLeave ? formData.leaveReason.trim() : '';
-      const leaveTypeTitle = leaveType === 'CASUAL_LEAVE' 
+      const isHoliday = !!formData.isHoliday || formData.leaveType === 'HOLIDAY';
+      const holidayName = (formData.holidayName || '').trim() || 'Declared Holiday';
+      const isLeave = !isHoliday && !!formData.isLeave && formData.leaveType !== 'NONE';
+      const leaveType = isHoliday ? 'HOLIDAY' : (isLeave ? formData.leaveType : 'NONE');
+      const leaveReason = isHoliday ? holidayName : (isLeave ? formData.leaveReason.trim() : '');
+      const leaveTypeTitle = isHoliday 
+        ? `Holiday (${holidayName})`
+        : leaveType === 'CASUAL_LEAVE' 
         ? 'Casual Leave (CL)' 
         : leaveType === 'SICK_LEAVE' 
         ? 'Sick Leave (SL)' 
@@ -1537,12 +1685,14 @@ export const DailyWorkView: React.FC = () => {
         additionalSummary = `Invigilation: ${invigilationHrs} hrs | Paper Eval: ${paperEvalHrs} hrs | In-service: ${inServiceHrs} hrs`;
       }
 
-      const rawHours = isLeave 
+      const rawHours = isHoliday
+        ? Number(formData.holidayHours || 0)
+        : isLeave 
         ? (leaveType === 'UNPAID_LEAVE' ? 0 : STANDARD_WORK_HOURS_PER_DAY)
         : (Number(formData.hoursLogged) || totalWorkHoursToday || STANDARD_WORK_HOURS_PER_DAY);
       const finalHoursLogged = Math.min(MAX_WORK_HOURS_PER_DAY, Math.max(0, rawHours));
-      const finalExtraHours = isLeave ? 0 : Number(Math.max(0, finalHoursLogged - STANDARD_WORK_HOURS_PER_DAY).toFixed(2));
-      const burnoutRisk = isLeave ? 'Normal' : getBurnoutRiskLevel(finalHoursLogged);
+      const finalExtraHours = (isLeave || isHoliday) ? 0 : Number(Math.max(0, finalHoursLogged - STANDARD_WORK_HOURS_PER_DAY).toFixed(2));
+      const burnoutRisk = (isLeave || isHoliday) ? 'Normal' : getBurnoutRiskLevel(finalHoursLogged);
 
       const payload = {
         userId: userProfile.uid,
@@ -1551,36 +1701,41 @@ export const DailyWorkView: React.FC = () => {
         teamId: userProfile.teamId || '',
         managerId: userProfile.managerId || '',
         date: targetDate,
-        classesHandled: isLeave ? `0 Classes (${leaveTypeTitle})` : `${formData.classesCount} Classes`,
-        classesCount: isLeave ? 0 : Number(formData.classesCount),
-        classDurationMinutes: isLeave ? 0 : Number(formData.classDurationMinutes),
-        totalClassesDurationMinutes: isLeave ? 0 : totalClassesMinutes,
-        practiceSessionsCount: isLeave ? 0 : Number(formData.practiceSessionsCount),
-        practiceDurationMinutes: isLeave ? 0 : Number(formData.practiceDurationMinutes),
-        totalPracticeDurationMinutes: isLeave ? 0 : totalPracticeMinutes,
-        totalSessionsCount: isLeave ? 0 : (Number(formData.classesCount) + Number(formData.practiceSessionsCount)),
-        sessionMinutesCalculated: isLeave ? 0 : totalTeachingMinutes,
-        tasksWorkedOn: isLeave 
+        classesHandled: isHoliday ? `0 Classes (Holiday: ${holidayName})` : isLeave ? `0 Classes (${leaveTypeTitle})` : `${formData.classesCount} Classes`,
+        classesCount: (isLeave || isHoliday) ? 0 : Number(formData.classesCount),
+        classDurationMinutes: (isLeave || isHoliday) ? 0 : Number(formData.classDurationMinutes),
+        totalClassesDurationMinutes: (isLeave || isHoliday) ? 0 : totalClassesMinutes,
+        practiceSessionsCount: (isLeave || isHoliday) ? 0 : Number(formData.practiceSessionsCount),
+        practiceDurationMinutes: (isLeave || isHoliday) ? 0 : Number(formData.practiceDurationMinutes),
+        totalPracticeDurationMinutes: (isLeave || isHoliday) ? 0 : totalPracticeMinutes,
+        totalSessionsCount: (isLeave || isHoliday) ? 0 : (Number(formData.classesCount) + Number(formData.practiceSessionsCount)),
+        sessionMinutesCalculated: (isLeave || isHoliday) ? 0 : totalTeachingMinutes,
+        tasksWorkedOn: isHoliday 
+          ? `[Holiday] ${holidayName}` 
+          : isLeave 
           ? `[${leaveTypeTitle}] ${leaveReason || 'Authorized Leave'}` 
           : (cleanTasksForWorkday(formData.tasksWorkedOn).trim() || `${formData.classesCount} Classes and ${formData.practiceSessionsCount} Practice Sessions conducted`),
-        projectUpdates: isLeave ? `On Leave (${leaveTypeTitle})` : `${formData.practiceSessionsCount} Practice Sessions (${totalPracticeMinutes} mins)`,
-        additionalCategory: isLeave ? 'None' : formData.additionalCategory,
-        additionalResponsibilities: isLeave ? 'None (On Leave)' : additionalSummary,
-        paperEvaluationHours: isLeave ? 0 : paperEvalHrs,
-        inServiceHours: isLeave ? 0 : inServiceHrs,
-        invigilationHours: isLeave ? 0 : invigilationHrs,
-        invigilationDetails: isLeave ? '' : formData.invigilationDetails.trim(),
+        projectUpdates: isHoliday ? `Holiday (${holidayName})` : isLeave ? `On Leave (${leaveTypeTitle})` : `${formData.practiceSessionsCount} Practice Sessions (${totalPracticeMinutes} mins)`,
+        additionalCategory: (isLeave || isHoliday) ? 'None' : formData.additionalCategory,
+        additionalResponsibilities: isHoliday ? `Holiday: ${holidayName}` : isLeave ? 'None (On Leave)' : additionalSummary,
+        paperEvaluationHours: (isLeave || isHoliday) ? 0 : paperEvalHrs,
+        inServiceHours: (isLeave || isHoliday) ? 0 : inServiceHrs,
+        invigilationHours: (isLeave || isHoliday) ? 0 : invigilationHrs,
+        invigilationDetails: (isLeave || isHoliday) ? '' : formData.invigilationDetails.trim(),
         isLeave,
         leaveType,
         leaveReason,
-        calculatedTotalHours: isLeave ? (leaveType === 'UNPAID_LEAVE' ? 0 : 6) : totalWorkHoursToday,
+        isHoliday,
+        holidayName,
+        holidayHours: Number(formData.holidayHours || 0),
+        calculatedTotalHours: isHoliday ? Number(formData.holidayHours || 0) : isLeave ? (leaveType === 'UNPAID_LEAVE' ? 0 : 6) : totalWorkHoursToday,
         standardWorkingHours: STANDARD_WORK_HOURS_PER_DAY,
         weeklyStandardHours: STANDARD_WORK_HOURS_PER_WEEK,
         extraHoursWorked: finalExtraHours,
         burnoutRiskLevel: burnoutRisk,
-        extraWorkReason: isLeave ? 'None' : (finalExtraHours > 0 ? (formData.extraWorkReason || 'Overtime Duty') : 'None'),
-        extraWorkDetails: isLeave ? '' : (formData.extraWorkDetails.trim() || formData.remarks.trim() || ''),
-        remarks: isLeave ? leaveReason : (formData.remarks.trim() || (finalExtraHours > 0 ? formData.extraWorkDetails.trim() : '')),
+        extraWorkReason: (isLeave || isHoliday) ? 'None' : (finalExtraHours > 0 ? (formData.extraWorkReason || 'Overtime Duty') : 'None'),
+        extraWorkDetails: (isLeave || isHoliday) ? '' : (formData.extraWorkDetails.trim() || formData.remarks.trim() || ''),
+        remarks: isHoliday ? `Holiday: ${holidayName}` : isLeave ? leaveReason : (formData.remarks.trim() || (finalExtraHours > 0 ? formData.extraWorkDetails.trim() : '')),
         hoursLogged: finalHoursLogged,
       };
 
@@ -1588,13 +1743,28 @@ export const DailyWorkView: React.FC = () => {
       const existingLogForDate = myUpdates.find(u => (u.date || '').split('T')[0] === targetDate);
       const targetId = editingUpdateId || existingLogForDate?.id || null;
       const wasLeavePreviously = !!existingLogForDate?.isLeave;
+      const wasHolidayPreviously = !!existingLogForDate?.isHoliday || existingLogForDate?.leaveType === 'HOLIDAY';
 
       if (targetId) {
         await updateDailyUpdate(targetId, payload);
-        if (wasLeavePreviously && !isLeave) {
+        if (isHoliday) {
+          addToast({
+            title: 'Holiday Logged Successfully',
+            message: `Work log for ${targetDate} was updated and marked as Holiday (${holidayName}).`,
+            type: 'success',
+            duration: 5000
+          });
+        } else if (wasLeavePreviously && !isLeave) {
           addToast({
             title: 'Leave Converted to Normal Workday',
             message: `Previous leave record for ${targetDate} was converted to a working day with ${formData.classesCount} classes (${finalHoursLogged}h logged).`,
+            type: 'success',
+            duration: 5000
+          });
+        } else if (wasHolidayPreviously && !isHoliday) {
+          addToast({
+            title: 'Holiday Converted to Workday',
+            message: `Previous holiday record for ${targetDate} was converted to a normal working day (${finalHoursLogged}h logged).`,
             type: 'success',
             duration: 5000
           });
@@ -1622,7 +1792,14 @@ export const DailyWorkView: React.FC = () => {
         }
       } else {
         await addDailyUpdate(payload);
-        if (rawWorkHoursToday >= MAX_WORK_HOURS_PER_DAY) {
+        if (isHoliday) {
+          addToast({
+            title: 'Holiday Logged Successfully',
+            message: `Day log for ${targetDate} has been recorded and marked as Holiday (${holidayName}).`,
+            type: 'success',
+            duration: 5000
+          });
+        } else if (rawWorkHoursToday >= MAX_WORK_HOURS_PER_DAY) {
           addToast({
             title: 'Daily Work Log Submitted (12h Limit Applied)',
             message: `Work log for ${targetDate} recorded at 12.0 hours maximum limit (activities reached ${rawWorkHoursToday.toFixed(1)}h).`,
@@ -2034,6 +2211,7 @@ export const DailyWorkView: React.FC = () => {
                   const isMissed = cell.isMissedLog;
                   const isToday = cell.isToday;
                   const isLeave = cell.isLeave;
+                  const isHoliday = cell.isHoliday;
                   const hasLog = !!cell.update;
 
                   return (
@@ -2044,6 +2222,8 @@ export const DailyWorkView: React.FC = () => {
                           ? 'bg-slate-50/30 opacity-40' 
                           : isMissed 
                           ? 'bg-rose-50/70 border-rose-300 ring-1 ring-rose-200/80 shadow-2xs' 
+                          : isHoliday
+                          ? 'bg-amber-50/60 border-amber-200 hover:bg-amber-100/50'
                           : isLeave 
                           ? 'bg-purple-50/40 hover:bg-purple-50/70' 
                           : isToday 
@@ -2064,6 +2244,8 @@ export const DailyWorkView: React.FC = () => {
                             ? 'text-rose-700 text-sm' 
                             : isToday 
                             ? 'text-sky-700 text-sm' 
+                            : isHoliday
+                            ? 'text-amber-800 text-sm'
                             : isSun 
                             ? 'text-slate-500' 
                             : 'text-slate-800'
@@ -2075,6 +2257,13 @@ export const DailyWorkView: React.FC = () => {
                           {isToday && (
                             <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded-md bg-sky-600 text-white shadow-2xs">
                               Today
+                            </span>
+                          )}
+
+                          {isHoliday && (
+                            <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded-md bg-amber-500 text-white shadow-2xs flex items-center gap-0.5">
+                              <Sun className="h-2.5 w-2.5" />
+                              Holiday
                             </span>
                           )}
 
@@ -2094,7 +2283,19 @@ export const DailyWorkView: React.FC = () => {
 
                       {/* Middle Cell Content */}
                       <div className="my-1.5 space-y-1">
-                        {isMissed ? (
+                        {isHoliday ? (
+                          <div className="rounded-lg bg-amber-100/80 p-1.5 border border-amber-300 text-left space-y-0.5">
+                            <span className="text-[10px] font-extrabold text-amber-950 flex items-center gap-1">
+                              <Sun className="h-3 w-3 text-amber-600 shrink-0" />
+                              <span className="truncate">
+                                {cell.holidayName || 'Holiday'}
+                              </span>
+                            </span>
+                            <span className="text-[9px] text-amber-800 font-semibold block">
+                              {cell.hoursLogged > 0 ? `${cell.hoursLogged}h Credited` : 'Official Holiday'}
+                            </span>
+                          </div>
+                        ) : isMissed ? (
                           <div className="rounded-lg bg-rose-100/90 p-1.5 border border-rose-300 text-left space-y-1">
                             <div className="text-[10px] font-extrabold text-rose-900 flex items-center gap-1">
                               <AlertTriangle className="h-3 w-3 text-rose-600 shrink-0" />
@@ -2782,6 +2983,8 @@ export const DailyWorkView: React.FC = () => {
                         className={`transition-colors ${
                           day.isMissedLog
                             ? 'bg-rose-50/50 hover:bg-rose-50/80 border-l-4 border-l-rose-500 shadow-2xs'
+                            : day.isHoliday
+                            ? 'bg-amber-50/50 hover:bg-amber-50/80 border-l-4 border-l-amber-500 shadow-2xs'
                             : day.isLeave
                             ? 'bg-purple-50/40 hover:bg-purple-50/70 border-l-4 border-l-purple-500'
                             : isToday 
@@ -2802,6 +3005,12 @@ export const DailyWorkView: React.FC = () => {
                             {isToday && (
                               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-600 text-white shadow-2xs">
                                 Today
+                              </span>
+                            )}
+                            {day.isHoliday && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-md text-[9px] font-black uppercase tracking-wider bg-amber-500 text-white shadow-2xs">
+                                <Sun className="h-2.5 w-2.5" />
+                                Holiday
                               </span>
                             )}
                             {day.isMissedLog && (
@@ -2837,6 +3046,15 @@ export const DailyWorkView: React.FC = () => {
                                 6h Deficit
                               </span>
                             </div>
+                          ) : day.isHoliday ? (
+                            <div className="flex items-center gap-1">
+                              <span className="font-black text-amber-950 text-xs">
+                                {day.hoursLogged} hrs
+                              </span>
+                              <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded-md border border-amber-300">
+                                {day.hoursLogged > 0 ? 'Paid Holiday' : 'Official Holiday'}
+                              </span>
+                            </div>
                           ) : day.isLeave ? (
                             <div className="flex items-center gap-1">
                               <span className="font-black text-purple-900 text-xs">
@@ -2863,6 +3081,11 @@ export const DailyWorkView: React.FC = () => {
                             <span className="inline-flex items-center gap-1 rounded-md bg-rose-100 text-rose-900 border border-rose-300 px-2 py-0.5 text-2xs font-black">
                               <AlertTriangle className="h-3 w-3 text-rose-600" />
                               Missed Log (6h Deficit)
+                            </span>
+                          ) : day.isHoliday ? (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 text-amber-950 border border-amber-300 px-2 py-0.5 text-2xs font-bold">
+                              <Sun className="h-3 w-3 text-amber-600" />
+                              Holiday &bull; {day.holidayName || 'Official Holiday'}
                             </span>
                           ) : day.isLeave ? (
                             <span className="inline-flex items-center gap-1 rounded-md bg-purple-100 text-purple-900 border border-purple-300 px-2 py-0.5 text-2xs font-bold">
@@ -2899,6 +3122,10 @@ export const DailyWorkView: React.FC = () => {
                           {day.isMissedLog ? (
                             <span className="text-rose-700 font-medium italic">
                               Forgot to submit daily log &bull; Click action to submit now
+                            </span>
+                          ) : day.isHoliday ? (
+                            <span className="text-amber-900 font-medium">
+                              Holiday: {day.holidayName || 'Declared Holiday'} (Sessions waived)
                             </span>
                           ) : day.isLeave ? (
                             <span className="text-purple-900 font-medium">
@@ -3050,12 +3277,28 @@ export const DailyWorkView: React.FC = () => {
 
             const isBurnoutWarning = loggedHours > STANDARD_WORK_HOURS_PER_DAY;
 
-            const isLeave = !!update.isLeave;
+            const isHoliday = Boolean(
+              update.isHoliday ||
+              update.leaveType === 'HOLIDAY' ||
+              (update.classesHandled && update.classesHandled.includes('(Holiday')) ||
+              (update.tasksWorkedOn && update.tasksWorkedOn.startsWith('[Holiday]'))
+            );
+            const holidayName = update.holidayName || (
+              isHoliday && update.tasksWorkedOn && update.tasksWorkedOn.startsWith('[Holiday]')
+                ? update.tasksWorkedOn.replace(/^\[Holiday\]\s*/i, '').trim()
+                : (update.classesHandled && update.classesHandled.includes('(Holiday: ')
+                  ? update.classesHandled.split('(Holiday: ')[1].replace(/\)$/, '').trim()
+                  : 'Public / Company Holiday')
+            );
+
+            const isLeave = !isHoliday && !!update.isLeave;
             return (
               <div
                 key={update.id}
                 className={`rounded-2xl border p-5 shadow-xs transition-all hover:shadow-md ${
-                  isLeave
+                  isHoliday
+                    ? 'border-amber-300 bg-amber-50/20 hover:border-amber-400'
+                    : isLeave
                     ? 'border-purple-200 bg-purple-50/20 hover:border-purple-300'
                     : isBurnoutWarning
                     ? 'border-amber-200/90 bg-white'
@@ -3074,6 +3317,12 @@ export const DailyWorkView: React.FC = () => {
                         Today
                       </span>
                     )}
+                    {isHoliday && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-black text-amber-900 border border-amber-300">
+                        <Sun className="h-3 w-3 text-amber-600" />
+                        Holiday ({holidayName})
+                      </span>
+                    )}
                     {isLeave && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2.5 py-0.5 text-[10px] font-black text-purple-800 border border-purple-300">
                         <Palmtree className="h-3 w-3" />
@@ -3087,8 +3336,13 @@ export const DailyWorkView: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-2.5 flex-wrap">
-                    {/* Working Hours / Leave Status Badge */}
-                    {isLeave ? (
+                    {/* Working Hours / Holiday / Leave Status Badge */}
+                    {isHoliday ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs text-amber-950 font-bold bg-amber-100/90 px-3 py-1 rounded-xl border border-amber-300">
+                        <Sun className="h-3.5 w-3.5 text-amber-600" />
+                        {loggedHours > 0 ? `${loggedHours}h Paid Shift Credited` : 'Official Holiday (0h)'}
+                      </span>
+                    ) : isLeave ? (
                       <span className="inline-flex items-center gap-1.5 text-xs text-purple-900 font-bold bg-purple-100/80 px-3 py-1 rounded-xl border border-purple-200">
                         <Palmtree className="h-3.5 w-3.5 text-purple-600" />
                         {update.leaveType === 'UNPAID_LEAVE' ? '0.0h (Loss of Pay)' : '6.0h Standard Shift Accounted'}
@@ -3101,7 +3355,7 @@ export const DailyWorkView: React.FC = () => {
                     )}
 
                     {/* Extra Hours & Extra Work Callout */}
-                    {!isLeave && (
+                    {!isLeave && !isHoliday && (
                       extraHrs > 0 ? (
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-300 px-2.5 py-1 rounded-xl shadow-2xs">
                           <Flame className="h-3.5 w-3.5 text-amber-600" />
@@ -3142,7 +3396,11 @@ export const DailyWorkView: React.FC = () => {
                       <GraduationCap className="h-3.5 w-3.5 text-sky-600" />
                       <span>Classes & Practice Sessions</span>
                     </p>
-                    {isLeave ? (
+                    {isHoliday ? (
+                      <p className="text-amber-800 text-xs italic py-2">
+                        Official Holiday ({holidayName}). No classes or lab practice scheduled.
+                      </p>
+                    ) : isLeave ? (
                       <p className="text-purple-800 text-xs italic py-2">
                         Instructor was on leave. No classes or lab practice scheduled.
                       </p>
@@ -3174,7 +3432,7 @@ export const DailyWorkView: React.FC = () => {
                       <div className="flex items-center justify-between mb-1.5">
                         <p className="font-bold text-sky-950 flex items-center gap-1.5">
                           <Briefcase className="h-3.5 w-3.5 text-sky-600" />
-                          <span>{isLeave ? 'Reason for Leave' : 'Tasks Completed Today'}</span>
+                          <span>{isHoliday ? 'Holiday Details' : isLeave ? 'Reason for Leave' : 'Tasks Completed Today'}</span>
                         </p>
                         <button
                           type="button"
@@ -3187,13 +3445,15 @@ export const DailyWorkView: React.FC = () => {
                         </button>
                       </div>
                       <p className="text-slate-700 line-clamp-3 leading-relaxed whitespace-pre-wrap text-xs">
-                        {isLeave 
+                        {isHoliday
+                          ? (update.tasksWorkedOn || `[Holiday] ${holidayName}`)
+                          : isLeave 
                           ? (update.leaveReason || 'Taken Leave')
                           : (update.tasksWorkedOn || 'No task description provided.')}
                       </p>
                     </div>
 
-                    {!isLeave && update.tasksWorkedOn && update.tasksWorkedOn.length > 80 && (
+                    {!isLeave && !isHoliday && update.tasksWorkedOn && update.tasksWorkedOn.length > 80 && (
                       <button
                         type="button"
                         onClick={() => setViewingTaskUpdate(update)}
@@ -3243,7 +3503,7 @@ export const DailyWorkView: React.FC = () => {
                           update.additionalResponsibilities && update.additionalResponsibilities !== 'None' ? (
                             <p className="text-slate-600">{update.additionalResponsibilities}</p>
                           ) : (
-                            <p className="text-slate-400 italic">No additional duties logged</p>
+                            <p className="text-slate-400 italic">{isHoliday ? 'Holiday - No additional duties' : 'No additional duties logged'}</p>
                           )
                         )}
                       </div>
@@ -3252,8 +3512,10 @@ export const DailyWorkView: React.FC = () => {
                     {/* Total Day Display & Overtime */}
                     <div className="mt-2 pt-2 border-t border-sky-100 flex items-center justify-between text-[11px]">
                       <span className="text-slate-500 font-medium">Daily Output:</span>
-                      <strong className={isLeave ? 'text-purple-900' : 'text-sky-900'}>
-                        {isLeave 
+                      <strong className={isHoliday ? 'text-amber-900' : isLeave ? 'text-purple-900' : 'text-sky-900'}>
+                        {isHoliday
+                          ? `${loggedHours}h (Holiday Accounted)`
+                          : isLeave 
                           ? `${loggedHours}h (Leave Credited)` 
                           : `${loggedHours}h ${extraHrs > 0 ? `(+${extraHrs}h overtime)` : ''}`}
                       </strong>
@@ -3354,9 +3616,9 @@ export const DailyWorkView: React.FC = () => {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-semibold text-slate-700">
-                  {formData.isLeave ? 'Shift Status' : 'Total Logged Hours * (Max 12h)'}
+                  {formData.isHoliday ? 'Holiday Status' : formData.isLeave ? 'Shift Status' : 'Total Logged Hours * (Max 12h)'}
                 </label>
-                {!formData.isLeave && formData.hoursLogged !== totalWorkHoursToday && (
+                {!formData.isLeave && !formData.isHoliday && formData.hoursLogged !== totalWorkHoursToday && (
                   <button
                     type="button"
                     onClick={handleSyncCalculatedHours}
@@ -3366,7 +3628,15 @@ export const DailyWorkView: React.FC = () => {
                   </button>
                 )}
               </div>
-              {formData.isLeave ? (
+              {formData.isHoliday ? (
+                <div className="w-full rounded-xl border border-amber-200 bg-amber-50/70 p-2.5 text-xs text-amber-950 font-bold flex items-center justify-between">
+                  <span>{formData.holidayHours === 6 ? '6.0 hrs Paid Holiday Shift' : '0.0 hrs Official Holiday'}</span>
+                  <span className="text-2xs bg-amber-200 text-amber-900 px-2 py-0.5 rounded-md font-extrabold flex items-center gap-1">
+                    <Sun className="h-3 w-3" />
+                    Holiday
+                  </span>
+                </div>
+              ) : formData.isLeave ? (
                 <div className="w-full rounded-xl border border-purple-200 bg-purple-50/70 p-2.5 text-xs text-purple-950 font-bold flex items-center justify-between">
                   <span>{formData.leaveType === 'UNPAID_LEAVE' ? '0.0 hrs (Loss of Pay)' : '6.0 hrs Standard Shift Accounted'}</span>
                   <span className="text-2xs bg-purple-200 text-purple-900 px-2 py-0.5 rounded-md font-extrabold">
@@ -3393,109 +3663,245 @@ export const DailyWorkView: React.FC = () => {
             </div>
           </div>
 
-          {/* Subcategory: Leave / Attendance Status */}
+          {/* Day Log Status Selector with Holiday Dropdown Box */}
           <div className={`rounded-2xl border p-3.5 transition-all ${
-            formData.isLeave 
-              ? 'border-purple-300 bg-purple-50/50 ring-1 ring-purple-200' 
+            formData.isHoliday
+              ? 'border-amber-300 bg-linear-to-r from-amber-50 to-orange-50/70 ring-1 ring-amber-200 shadow-xs'
+              : formData.isLeave 
+              ? 'border-purple-300 bg-purple-50/50 ring-1 ring-purple-200 shadow-xs' 
               : 'border-slate-200 bg-slate-50/40 hover:border-slate-300'
           }`}>
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={formData.isLeave}
-                  onChange={(e) => {
-                    const isChecked = e.target.checked;
-                    updateLeaveMode(isChecked, isChecked ? (formData.leaveType !== 'NONE' ? formData.leaveType : 'CASUAL_LEAVE') : 'NONE');
-                  }}
-                  className="h-4 w-4 rounded-md border-slate-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
-                />
-                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
+              <label htmlFor="daily-work-day-status-dropdown" className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                {formData.isHoliday ? (
+                  <Sun className="h-4 w-4 text-amber-600" />
+                ) : formData.isLeave ? (
                   <Palmtree className="h-4 w-4 text-purple-600" />
-                  <span>Took Leave Today / Mark as Leave</span>
-                </span>
+                ) : (
+                  <Briefcase className="h-4 w-4 text-sky-600" />
+                )}
+                <span>Day Status & Attendance Type *</span>
               </label>
 
-              {formData.isLeave && (
-                <span className="text-[10px] font-bold text-purple-800 bg-purple-100 px-2.5 py-0.5 rounded-full border border-purple-200">
-                  {formData.leaveType === 'UNPAID_LEAVE' ? '0.0h Loss of Pay' : '6.0h Shift Accounted'}
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {formData.isHoliday && (
+                  <span className="text-[10px] font-black text-amber-900 bg-amber-200/90 px-2.5 py-0.5 rounded-full border border-amber-300 flex items-center gap-1 shadow-2xs">
+                    <Sun className="h-3 w-3 text-amber-700" />
+                    Marked as Holiday
+                  </span>
+                )}
+                {formData.isLeave && (
+                  <span className="text-[10px] font-bold text-purple-800 bg-purple-100 px-2.5 py-0.5 rounded-full border border-purple-200">
+                    {formData.leaveType === 'UNPAID_LEAVE' ? '0.0h Loss of Pay' : '6.0h Shift Accounted'}
+                  </span>
+                )}
+                {!formData.isHoliday && !formData.isLeave && (
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                    Normal Workday
+                  </span>
+                )}
+              </div>
             </div>
 
-            {formData.isLeave && (
-              <div className="mt-3 pt-3 border-t border-purple-100 space-y-2.5">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[11px] font-semibold text-purple-900">Leave Type:</span>
-                  <button
-                    type="button"
-                    onClick={() => toggleLeaveType('CASUAL_LEAVE')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5 ${
-                      formData.leaveType === 'CASUAL_LEAVE'
-                        ? 'bg-purple-600 text-white border-purple-600 shadow-2xs'
-                        : 'bg-white text-purple-900 border-purple-200 hover:bg-purple-100'
-                    }`}
-                    title={formData.leaveType === 'CASUAL_LEAVE' ? "Click to unselect Casual Leave and return to normal workday" : "Click to select Casual Leave"}
-                  >
-                    <span>Casual Leave (CL) &bull; 6h</span>
-                    {formData.leaveType === 'CASUAL_LEAVE' && (
-                      <span className="text-[10px] font-black bg-purple-700 text-white px-1 rounded-sm" title="Selected - click again to unselect">✕ Unselect</span>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => toggleLeaveType('SICK_LEAVE')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5 ${
-                      formData.leaveType === 'SICK_LEAVE'
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
-                        : 'bg-white text-emerald-900 border-emerald-200 hover:bg-emerald-100'
-                    }`}
-                    title={formData.leaveType === 'SICK_LEAVE' ? "Click to unselect Sick Leave and return to normal workday" : "Click to select Sick Leave"}
-                  >
-                    <span>Sick Leave (SL) &bull; 6h</span>
-                    {formData.leaveType === 'SICK_LEAVE' && (
-                      <span className="text-[10px] font-black bg-emerald-700 text-white px-1 rounded-sm" title="Selected - click again to unselect">✕ Unselect</span>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => toggleLeaveType('UNPAID_LEAVE')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5 ${
-                      formData.leaveType === 'UNPAID_LEAVE'
-                        ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
-                        : 'bg-white text-amber-900 border-amber-200 hover:bg-amber-100'
-                    }`}
-                    title={formData.leaveType === 'UNPAID_LEAVE' ? "Click to unselect Unpaid Leave and return to normal workday" : "Click to select Unpaid Leave"}
-                  >
-                    <span>Unpaid Leave (LOP) &bull; 0h</span>
-                    {formData.leaveType === 'UNPAID_LEAVE' && (
-                      <span className="text-[10px] font-black bg-amber-700 text-white px-1 rounded-sm" title="Selected - click again to unselect">✕ Unselect</span>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => updateLeaveMode(false, 'NONE')}
-                    className="ml-auto text-xs font-bold text-rose-700 hover:text-rose-900 hover:underline cursor-pointer bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-lg border border-rose-200 transition-colors"
-                  >
-                    Unselect / Normal Workday
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between text-[11px] text-purple-900/80">
-                  <span>Single-tap to select &bull; Tap again on active leave to unselect &bull; Or click sessions below</span>
-                </div>
-
-                <div>
-                  <input
-                    type="text"
-                    placeholder="Reason for leave (optional, e.g. Doctor consultation, family event)..."
-                    value={formData.leaveReason}
-                    onChange={(e) => setFormData({ ...formData, leaveReason: e.target.value })}
-                    className="w-full rounded-xl border border-purple-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-purple-500 focus:outline-hidden"
-                  />
-                </div>
+            {/* Dropdown Box to select Holiday, Regular Workday, or Leave */}
+            <div className="space-y-3">
+              <div>
+                <select
+                  id="daily-work-day-status-dropdown"
+                  value={
+                    formData.isHoliday 
+                      ? 'HOLIDAY' 
+                      : formData.isLeave 
+                      ? (formData.leaveType || 'CASUAL_LEAVE') 
+                      : 'WORKING_DAY'
+                  }
+                  onChange={(e) => handleDayStatusChange(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-900 font-bold focus:border-amber-500 focus:outline-hidden shadow-xs cursor-pointer"
+                >
+                  <option value="WORKING_DAY">💼 Regular Working Day (Log Teaching Classes, Labs & Tasks)</option>
+                  <option value="HOLIDAY">🎉 Holiday (Public / Company / Declared Holiday / Weekend Off)</option>
+                  <option value="CASUAL_LEAVE">🌴 Casual Leave (CL &bull; 6h Shift Credited)</option>
+                  <option value="SICK_LEAVE">🩺 Sick Leave (SL &bull; 6h Shift Credited)</option>
+                  <option value="UNPAID_LEAVE">⏳ Unpaid Leave (LOP &bull; 0.0h Loss of Pay)</option>
+                </select>
               </div>
-            )}
+
+              {/* Holiday Details Section when Holiday is selected */}
+              {formData.isHoliday && (
+                <div className="pt-2 border-t border-amber-200/80 space-y-3">
+                  <div className="flex items-start gap-2.5 bg-white/80 p-3 rounded-xl border border-amber-200">
+                    <Sun className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="space-y-0.5">
+                      <p className="text-xs font-bold text-amber-950">
+                        Day Marked as Holiday
+                      </p>
+                      <p className="text-[11px] text-amber-800 leading-relaxed">
+                        When submitted, this day log will be officially recorded as a <strong>Holiday</strong>. No class sessions or daily tasks are required to be logged.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Holiday Category Preset:
+                      </label>
+                      <select
+                        value={
+                          ['Public / National Holiday', 'Festival Holiday', 'Company Declared Holiday', 'Weekly Off / Sunday', 'Optional / Restricted Holiday'].includes(formData.holidayName)
+                            ? formData.holidayName
+                            : 'Custom / Other Holiday'
+                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val !== 'Custom / Other Holiday') {
+                            setFormData(prev => ({
+                              ...prev,
+                              holidayName: val,
+                              tasksWorkedOn: `[Holiday] ${val}`
+                            }));
+                          } else {
+                            setFormData(prev => ({
+                              ...prev,
+                              holidayName: 'Declared Holiday',
+                              tasksWorkedOn: '[Holiday] Declared Holiday'
+                            }));
+                          }
+                        }}
+                        className="w-full rounded-xl border border-amber-200 bg-white p-2 text-xs font-semibold text-slate-800 focus:border-amber-500 focus:outline-hidden"
+                      >
+                        <option value="Public / National Holiday">🏛️ Public / National Holiday</option>
+                        <option value="Festival Holiday">🎊 Festival Holiday (Diwali, Pongal, Eid, etc.)</option>
+                        <option value="Company Declared Holiday">🏢 Company Declared Holiday</option>
+                        <option value="Weekly Off / Sunday">🗓️ Weekly Off / Declared Holiday</option>
+                        <option value="Optional / Restricted Holiday">✨ Optional / Restricted Holiday</option>
+                        <option value="Custom / Other Holiday">✏️ Other Holiday (Enter custom name)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Holiday Name / Reason:
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Diwali, Independence Day, Republic Day..."
+                        value={formData.holidayName}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setFormData(prev => ({
+                            ...prev,
+                            holidayName: val,
+                            tasksWorkedOn: `[Holiday] ${val || 'Declared Holiday'}`
+                          }));
+                        }}
+                        className="w-full rounded-xl border border-amber-200 bg-white p-2 text-xs text-slate-900 font-semibold placeholder:text-slate-400 focus:border-amber-500 focus:outline-hidden"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-amber-100 flex-wrap gap-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-semibold text-slate-600">Holiday Credited Hours:</span>
+                      <select
+                        value={formData.holidayHours}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setFormData(prev => ({
+                            ...prev,
+                            holidayHours: val,
+                            hoursLogged: val
+                          }));
+                        }}
+                        className="rounded-lg border border-amber-200 bg-white px-2 py-1 text-xs font-bold text-amber-900 focus:border-amber-500 focus:outline-hidden"
+                      >
+                        <option value={0}>0.0 hrs (Standard Non-working Holiday)</option>
+                        <option value={6}>6.0 hrs (Paid Shift Credited)</option>
+                      </select>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDayStatusChange('WORKING_DAY')}
+                      className="text-xs font-bold text-amber-900 hover:text-amber-950 underline cursor-pointer"
+                    >
+                      Switch to Regular Workday
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Leave Details Section (if Leave is selected) */}
+              {formData.isLeave && !formData.isHoliday && (
+                <div className="mt-3 pt-3 border-t border-purple-100 space-y-2.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-semibold text-purple-900">Leave Type:</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleLeaveType('CASUAL_LEAVE')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5 ${
+                        formData.leaveType === 'CASUAL_LEAVE'
+                          ? 'bg-purple-600 text-white border-purple-600 shadow-2xs'
+                          : 'bg-white text-purple-900 border-purple-200 hover:bg-purple-100'
+                      }`}
+                      title={formData.leaveType === 'CASUAL_LEAVE' ? "Click to unselect Casual Leave and return to normal workday" : "Click to select Casual Leave"}
+                    >
+                      <span>Casual Leave (CL) &bull; 6h</span>
+                      {formData.leaveType === 'CASUAL_LEAVE' && (
+                        <span className="text-[10px] font-black bg-purple-700 text-white px-1 rounded-sm" title="Selected - click again to unselect">✕ Unselect</span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleLeaveType('SICK_LEAVE')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5 ${
+                        formData.leaveType === 'SICK_LEAVE'
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                          : 'bg-white text-emerald-900 border-emerald-200 hover:bg-emerald-100'
+                      }`}
+                      title={formData.leaveType === 'SICK_LEAVE' ? "Click to unselect Sick Leave and return to normal workday" : "Click to select Sick Leave"}
+                    >
+                      <span>Sick Leave (SL) &bull; 6h</span>
+                      {formData.leaveType === 'SICK_LEAVE' && (
+                        <span className="text-[10px] font-black bg-emerald-700 text-white px-1 rounded-sm" title="Selected - click again to unselect">✕ Unselect</span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleLeaveType('UNPAID_LEAVE')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5 ${
+                        formData.leaveType === 'UNPAID_LEAVE'
+                          ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
+                          : 'bg-white text-amber-900 border-amber-200 hover:bg-amber-100'
+                      }`}
+                      title={formData.leaveType === 'UNPAID_LEAVE' ? "Click to unselect Unpaid Leave and return to normal workday" : "Click to select Unpaid Leave"}
+                    >
+                      <span>Unpaid Leave (LOP) &bull; 0h</span>
+                      {formData.leaveType === 'UNPAID_LEAVE' && (
+                        <span className="text-[10px] font-black bg-amber-700 text-white px-1 rounded-sm" title="Selected - click again to unselect">✕ Unselect</span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDayStatusChange('WORKING_DAY')}
+                      className="ml-auto text-xs font-bold text-rose-700 hover:text-rose-900 hover:underline cursor-pointer bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-lg border border-rose-200 transition-colors"
+                    >
+                      Unselect / Normal Workday
+                    </button>
+                  </div>
+
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="Reason for leave (optional, e.g. Doctor consultation, family event)..."
+                      value={formData.leaveReason}
+                      onChange={(e) => setFormData({ ...formData, leaveReason: e.target.value })}
+                      className="w-full rounded-xl border border-purple-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-purple-500 focus:outline-hidden"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
               {/* 12-Hour Daily Max Limit Notification Callout */}
               {rawWorkHoursToday >= MAX_WORK_HOURS_PER_DAY && (
@@ -3540,11 +3946,22 @@ export const DailyWorkView: React.FC = () => {
               )}
 
               {/* Teaching & Practice Sessions */}
-              <div className={`rounded-2xl border transition-all p-3.5 space-y-3 ${
-                formData.isLeave
-                  ? 'border-purple-200 bg-purple-50/20'
-                  : 'border-slate-200 bg-slate-50/30'
-              }`}>
+              {formData.isHoliday ? (
+                <div className="rounded-2xl border border-amber-300 bg-linear-to-r from-amber-50 to-orange-50/70 p-4 text-center space-y-2">
+                  <div className="flex items-center justify-center gap-2 text-amber-950 font-bold text-xs">
+                    <Sun className="h-4 w-4 text-amber-600" />
+                    <span>Teaching & Practice Sessions Waived for Holiday</span>
+                  </div>
+                  <p className="text-[11px] text-amber-800">
+                    This day is logged as <strong>{formData.holidayName || 'Holiday'}</strong>. Classes and lab sessions are not required.
+                  </p>
+                </div>
+              ) : (
+                <div className={`rounded-2xl border transition-all p-3.5 space-y-3 ${
+                  formData.isLeave
+                    ? 'border-purple-200 bg-purple-50/20'
+                    : 'border-slate-200 bg-slate-50/30'
+                }`}>
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                     <BookOpen className="h-4 w-4 text-sky-600" />
@@ -3703,9 +4120,11 @@ export const DailyWorkView: React.FC = () => {
                   </div>
                 </div>
               </div>
+              )}
 
               {/* Additional Responsibilities (Invigilation, Paper Evaluation, In-service) */}
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/30 p-3.5 space-y-3">
+              {!formData.isHoliday && (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/30 p-3.5 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                     <FileCheck2 className="h-4 w-4 text-sky-600" />
@@ -3912,6 +4331,7 @@ export const DailyWorkView: React.FC = () => {
                   </div>
                 )}
               </div>
+              )}
 
               {/* Tasks Completed Today (Mandatory - Positioned after Additional Responsibilities) */}
               <div className="rounded-2xl border-2 border-sky-300 bg-white p-4 space-y-2.5 shadow-xs transition-all">
@@ -3944,11 +4364,15 @@ export const DailyWorkView: React.FC = () => {
 
                 <div className="relative">
                   <textarea
-                    required={!formData.isLeave}
+                    required={!formData.isLeave && !formData.isHoliday}
                     id="tasks-worked-on-textarea"
                     rows={4}
-                    placeholder="Enter what you have done today: summary of topics taught, student lab coordination, issues resolved, and what you learned during today's sessions... (Click 'Maximize Box' above to edit in a large full screen window)"
-                    value={!formData.isLeave && isLeaveText(formData.tasksWorkedOn) ? '' : formData.tasksWorkedOn}
+                    placeholder={
+                      formData.isHoliday 
+                        ? `Day logged as Holiday: ${formData.holidayName || 'Declared Holiday'}` 
+                        : "Enter what you have done today: summary of topics taught, student lab coordination, issues resolved, and what you learned during today's sessions... (Click 'Maximize Box' above to edit in a large full screen window)"
+                    }
+                    value={formData.isHoliday ? (formData.tasksWorkedOn || `[Holiday] ${formData.holidayName || 'Declared Holiday'}`) : !formData.isLeave && isLeaveText(formData.tasksWorkedOn) ? '' : formData.tasksWorkedOn}
                     onChange={(e) => setFormData({ ...formData, tasksWorkedOn: e.target.value })}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3 pr-10 text-xs text-slate-900 focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-100 focus:outline-hidden leading-relaxed placeholder:text-slate-400"
                   />
@@ -3967,7 +4391,7 @@ export const DailyWorkView: React.FC = () => {
                 <div className="flex flex-wrap items-center justify-between text-[11px] gap-2 pt-0.5">
                   <div className="flex items-center gap-2 text-slate-500">
                     <span>
-                      Character count: <strong className="text-slate-800">{(!formData.isLeave && isLeaveText(formData.tasksWorkedOn) ? '' : formData.tasksWorkedOn).length}</strong>
+                      Character count: <strong className="text-slate-800">{(formData.isHoliday ? (formData.tasksWorkedOn || `[Holiday] ${formData.holidayName || 'Declared Holiday'}`) : !formData.isLeave && isLeaveText(formData.tasksWorkedOn) ? '' : formData.tasksWorkedOn).length}</strong>
                     </span>
                     <span>•</span>
                     <button
@@ -3980,9 +4404,16 @@ export const DailyWorkView: React.FC = () => {
                     </button>
                   </div>
 
-                  <span className="text-rose-600 font-semibold">
-                    * Required before submitting work log
-                  </span>
+                  {!formData.isLeave && !formData.isHoliday ? (
+                    <span className="text-rose-600 font-semibold">
+                      * Required before submitting work log
+                    </span>
+                  ) : formData.isHoliday ? (
+                    <span className="text-amber-700 font-semibold flex items-center gap-1">
+                      <Sun className="h-3 w-3" />
+                      Holiday note auto-filled
+                    </span>
+                  ) : null}
                 </div>
               </div>
 
@@ -4066,7 +4497,11 @@ export const DailyWorkView: React.FC = () => {
                 <CheckCircle2 className="h-4 w-4" />
                 <span>
                   {saving
-                    ? 'Saving Workload...'
+                    ? 'Saving...'
+                    : formData.isHoliday
+                    ? (editingUpdateId || existingLogForDate ? 'Update Holiday Log' : 'Save Holiday Log')
+                    : formData.isLeave
+                    ? (editingUpdateId || existingLogForDate ? 'Update Leave Log' : 'Save Leave Log')
                     : (editingUpdateId || existingLogForDate)
                     ? 'Update Workload'
                     : 'Save Workload'}
@@ -4085,34 +4520,89 @@ export const DailyWorkView: React.FC = () => {
           title={`Daily Work Log: ${selectedDetailUpdate.date}`}
           subtitle={`Logged by ${selectedDetailUpdate.employeeName} (${selectedDetailUpdate.employeeId})`}
         >
+          {(() => {
+            const isDetailHoliday = Boolean(
+              selectedDetailUpdate.isHoliday ||
+              selectedDetailUpdate.leaveType === 'HOLIDAY' ||
+              (selectedDetailUpdate.classesHandled && selectedDetailUpdate.classesHandled.includes('(Holiday')) ||
+              (selectedDetailUpdate.tasksWorkedOn && selectedDetailUpdate.tasksWorkedOn.startsWith('[Holiday]'))
+            );
+            const detailHolidayName = selectedDetailUpdate.holidayName || (
+              isDetailHoliday && selectedDetailUpdate.tasksWorkedOn && selectedDetailUpdate.tasksWorkedOn.startsWith('[Holiday]')
+                ? selectedDetailUpdate.tasksWorkedOn.replace(/^\[Holiday\]\s*/i, '').trim()
+                : (selectedDetailUpdate.classesHandled && selectedDetailUpdate.classesHandled.includes('(Holiday: ')
+                  ? selectedDetailUpdate.classesHandled.split('(Holiday: ')[1].replace(/\)$/, '').trim()
+                  : 'Public / Company Holiday')
+            );
+            const isDetailLeave = !isDetailHoliday && !!selectedDetailUpdate.isLeave;
+
+            return (
           <div className="space-y-4 text-xs">
             {/* Hours & Extra Hours Banner */}
-            <div className={`flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl border gap-2 ${
-              (selectedDetailUpdate.extraHoursWorked && selectedDetailUpdate.extraHoursWorked > 0) || ((selectedDetailUpdate.hoursLogged || 0) > STANDARD_WORK_HOURS_PER_DAY)
-                ? 'bg-amber-50 border-amber-300'
-                : 'bg-sky-50 border-sky-200'
-            }`}>
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-sky-600" />
-                <span className="font-semibold text-slate-700">Total Hours Worked:</span>
-                <span className="font-bold text-sky-950 text-sm">{selectedDetailUpdate.hoursLogged || 6} Hours</span>
+            {isDetailHoliday ? (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl border border-amber-300 bg-amber-50/90 gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-amber-100 text-amber-700">
+                    <Sun className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="font-extrabold text-amber-950 text-sm block">Day Logged as Holiday</span>
+                    <span className="text-[11px] text-amber-800">
+                      Official Holiday: <strong>{detailHolidayName}</strong> &bull; Class &amp; lab sessions waived
+                    </span>
+                  </div>
+                </div>
+                <span className="inline-flex items-center gap-1 font-bold bg-amber-200/90 text-amber-950 px-3 py-1 rounded-lg border border-amber-300">
+                  <Sun className="h-3.5 w-3.5 text-amber-700" />
+                  {selectedDetailUpdate.hoursLogged ? `${selectedDetailUpdate.hoursLogged} Hours Credited` : 'Official Holiday (0h)'}
+                </span>
               </div>
-              
-              {(selectedDetailUpdate.extraHoursWorked && selectedDetailUpdate.extraHoursWorked > 0) || 
-               ((selectedDetailUpdate.hoursLogged || 0) > STANDARD_WORK_HOURS_PER_DAY) ? (
-                <span className="inline-flex items-center gap-1 font-bold bg-amber-100 text-amber-900 px-2.5 py-1 rounded-lg border border-amber-300">
-                  <Flame className="h-3.5 w-3.5 text-amber-600" />
-                  +{(selectedDetailUpdate.extraHoursWorked || ((selectedDetailUpdate.hoursLogged || 0) - STANDARD_WORK_HOURS_PER_DAY)).toFixed(2)}h Overtime (Beyond 6h Limit)
+            ) : isDetailLeave ? (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl border border-purple-300 bg-purple-50/90 gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-purple-100 text-purple-700">
+                    <Palmtree className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="font-extrabold text-purple-950 text-sm block">Day Logged as Leave</span>
+                    <span className="text-[11px] text-purple-800">
+                      {selectedDetailUpdate.leaveType === 'CASUAL_LEAVE' ? 'Casual Leave (CL)' : selectedDetailUpdate.leaveType === 'SICK_LEAVE' ? 'Sick Leave (SL)' : 'Unpaid Leave (LOP)'} &bull; {selectedDetailUpdate.leaveReason || 'Authorized Leave'}
+                    </span>
+                  </div>
+                </div>
+                <span className="inline-flex items-center gap-1 font-bold bg-purple-200/90 text-purple-950 px-3 py-1 rounded-lg border border-purple-300">
+                  <Palmtree className="h-3.5 w-3.5 text-purple-700" />
+                  {selectedDetailUpdate.hoursLogged || 6} Hours Accounted
                 </span>
-              ) : (
-                <span className="text-emerald-700 font-medium bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-                  Standard 6h Workday (Healthy Load)
-                </span>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className={`flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl border gap-2 ${
+                (selectedDetailUpdate.extraHoursWorked && selectedDetailUpdate.extraHoursWorked > 0) || ((selectedDetailUpdate.hoursLogged || 0) > STANDARD_WORK_HOURS_PER_DAY)
+                  ? 'bg-amber-50 border-amber-300'
+                  : 'bg-sky-50 border-sky-200'
+              }`}>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-sky-600" />
+                  <span className="font-semibold text-slate-700">Total Hours Worked:</span>
+                  <span className="font-bold text-sky-950 text-sm">{selectedDetailUpdate.hoursLogged || 6} Hours</span>
+                </div>
+                
+                {(selectedDetailUpdate.extraHoursWorked && selectedDetailUpdate.extraHoursWorked > 0) || 
+                 ((selectedDetailUpdate.hoursLogged || 0) > STANDARD_WORK_HOURS_PER_DAY) ? (
+                  <span className="inline-flex items-center gap-1 font-bold bg-amber-100 text-amber-900 px-2.5 py-1 rounded-lg border border-amber-300">
+                    <Flame className="h-3.5 w-3.5 text-amber-600" />
+                    +{(selectedDetailUpdate.extraHoursWorked || ((selectedDetailUpdate.hoursLogged || 0) - STANDARD_WORK_HOURS_PER_DAY)).toFixed(2)}h Overtime (Beyond 6h Limit)
+                  </span>
+                ) : (
+                  <span className="text-emerald-700 font-medium bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                    Standard 6h Workday (Healthy Load)
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Overtime Work Reason (if overtime was worked) */}
-            {selectedDetailUpdate.extraWorkReason && (
+            {!isDetailHoliday && !isDetailLeave && selectedDetailUpdate.extraWorkReason && (
               <div className="rounded-xl bg-amber-50 p-3 border border-amber-200">
                 <span className="font-bold text-amber-950 block mb-1">
                   Reason / Task for Extra Hours Worked:
@@ -4129,41 +4619,63 @@ export const DailyWorkView: React.FC = () => {
             )}
 
             {/* Sessions Handled Breakdown */}
-            <div className="rounded-xl bg-sky-50/60 p-4 border border-sky-100 space-y-2">
-              <span className="font-bold text-sky-950 flex items-center gap-1.5 border-b border-sky-200/60 pb-2">
-                <GraduationCap className="h-4 w-4 text-sky-600" />
-                <span>Classes & Practice Sessions</span>
-              </span>
-              
-              <div className="grid grid-cols-2 gap-3 pt-1">
-                <div className="bg-white p-2.5 rounded-lg border border-sky-100">
-                  <span className="text-slate-500 text-[11px]">Classes Handled:</span>
-                  <p className="font-bold text-slate-900 text-sm mt-0.5">
-                    {selectedDetailUpdate.classesCount !== undefined 
-                      ? `${selectedDetailUpdate.classesCount} Classes`
-                      : selectedDetailUpdate.classesHandled}
-                  </p>
-                  {selectedDetailUpdate.classDurationMinutes && (
-                    <p className="text-[10px] text-sky-600 mt-0.5">
-                      {selectedDetailUpdate.classDurationMinutes} mins each (Total: {(selectedDetailUpdate.totalClassesDurationMinutes || ((selectedDetailUpdate.classesCount || 0) * selectedDetailUpdate.classDurationMinutes))} mins)
+            {isDetailHoliday ? (
+              <div className="rounded-xl bg-amber-50/60 p-4 border border-amber-200 text-center space-y-1">
+                <span className="font-bold text-amber-950 flex items-center justify-center gap-1.5 text-xs">
+                  <Sun className="h-4 w-4 text-amber-600" />
+                  <span>Classes &amp; Practice Sessions Waived for Holiday</span>
+                </span>
+                <p className="text-amber-800 text-[11px]">
+                  This day was recorded as <strong>{detailHolidayName}</strong>. No classes or student lab sessions were scheduled.
+                </p>
+              </div>
+            ) : isDetailLeave ? (
+              <div className="rounded-xl bg-purple-50/60 p-4 border border-purple-200 text-center space-y-1">
+                <span className="font-bold text-purple-950 flex items-center justify-center gap-1.5 text-xs">
+                  <Palmtree className="h-4 w-4 text-purple-600" />
+                  <span>Instructor on Authorized Leave</span>
+                </span>
+                <p className="text-purple-800 text-[11px]">
+                  No teaching or mentoring sessions were conducted on this date.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl bg-sky-50/60 p-4 border border-sky-100 space-y-2">
+                <span className="font-bold text-sky-950 flex items-center gap-1.5 border-b border-sky-200/60 pb-2">
+                  <GraduationCap className="h-4 w-4 text-sky-600" />
+                  <span>Classes &amp; Practice Sessions</span>
+                </span>
+                
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div className="bg-white p-2.5 rounded-lg border border-sky-100">
+                    <span className="text-slate-500 text-[11px]">Classes Handled:</span>
+                    <p className="font-bold text-slate-900 text-sm mt-0.5">
+                      {selectedDetailUpdate.classesCount !== undefined 
+                        ? `${selectedDetailUpdate.classesCount} Classes`
+                        : selectedDetailUpdate.classesHandled}
                     </p>
-                  )}
-                </div>
-                <div className="bg-white p-2.5 rounded-lg border border-sky-100">
-                  <span className="text-slate-500 text-[11px]">Practice Sessions:</span>
-                  <p className="font-bold text-slate-900 text-sm mt-0.5">
-                    {selectedDetailUpdate.practiceSessionsCount !== undefined 
-                      ? `${selectedDetailUpdate.practiceSessionsCount} Sessions`
-                      : (selectedDetailUpdate.projectUpdates || '0 Sessions')}
-                  </p>
-                  {selectedDetailUpdate.practiceDurationMinutes && (
-                    <p className="text-[10px] text-sky-600 mt-0.5">
-                      {selectedDetailUpdate.practiceDurationMinutes} mins each (Total: {(selectedDetailUpdate.totalPracticeDurationMinutes || ((selectedDetailUpdate.practiceSessionsCount || 0) * selectedDetailUpdate.practiceDurationMinutes))} mins)
+                    {selectedDetailUpdate.classDurationMinutes && (
+                      <p className="text-[10px] text-sky-600 mt-0.5">
+                        {selectedDetailUpdate.classDurationMinutes} mins each (Total: {(selectedDetailUpdate.totalClassesDurationMinutes || ((selectedDetailUpdate.classesCount || 0) * selectedDetailUpdate.classDurationMinutes))} mins)
+                      </p>
+                    )}
+                  </div>
+                  <div className="bg-white p-2.5 rounded-lg border border-sky-100">
+                    <span className="text-slate-500 text-[11px]">Practice Sessions:</span>
+                    <p className="font-bold text-slate-900 text-sm mt-0.5">
+                      {selectedDetailUpdate.practiceSessionsCount !== undefined 
+                        ? `${selectedDetailUpdate.practiceSessionsCount} Sessions`
+                        : (selectedDetailUpdate.projectUpdates || '0 Sessions')}
                     </p>
-                  )}
+                    {selectedDetailUpdate.practiceDurationMinutes && (
+                      <p className="text-[10px] text-sky-600 mt-0.5">
+                        {selectedDetailUpdate.practiceDurationMinutes} mins each (Total: {(selectedDetailUpdate.totalPracticeDurationMinutes || ((selectedDetailUpdate.practiceSessionsCount || 0) * selectedDetailUpdate.practiceDurationMinutes))} mins)
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Tasks Worked On */}
             <div className="rounded-xl bg-sky-50/60 p-4 border border-sky-100">
@@ -4231,6 +4743,8 @@ export const DailyWorkView: React.FC = () => {
               </button>
             </div>
           </div>
+            );
+          })()}
         </Modal>
       )}
 

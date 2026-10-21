@@ -675,11 +675,12 @@ export function calculateWorkEffortBreakdown(
 
   dailyUpdates.forEach((u) => {
     if (u.date) distinctDates.add(u.date);
-    const logged = Number(u.hoursLogged) || (u.isLeave ? 6 : 6);
-    const paper = Number(u.paperEvaluationHours) || 0;
-    const inServ = Number(u.inServiceHours) || 0;
-    const invig = Number(u.invigilationHours) || 0;
-    const ot = Number(u.extraHoursWorked) || Math.max(0, logged - 6);
+    const isHol = Boolean(u.isHoliday || u.leaveType === 'HOLIDAY');
+    const logged = u.hoursLogged !== undefined ? Number(u.hoursLogged) : (isHol ? 0 : (u.isLeave ? 6 : 6));
+    const paper = isHol ? 0 : (Number(u.paperEvaluationHours) || 0);
+    const inServ = isHol ? 0 : (Number(u.inServiceHours) || 0);
+    const invig = isHol ? 0 : (Number(u.invigilationHours) || 0);
+    const ot = isHol ? 0 : (Number(u.extraHoursWorked) || Math.max(0, logged - 6));
 
     rawPaperEvaluationHours += paper;
     rawInServiceHours += inServ;
