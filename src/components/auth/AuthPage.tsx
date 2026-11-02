@@ -292,10 +292,24 @@ export const AuthPage: React.FC = () => {
       const rawCode = err?.code || '';
       const errMsg = err?.message || '';
 
-      // Check for Role Restriction Error (e.g. Trainer account trying to sign in under Manager Portal or vice versa)
+      // Account not found error
+      if (
+        errMsg.startsWith('NO_ACCOUNT_FOUND:') ||
+        errMsg.toLowerCase().includes('no registered account') ||
+        errMsg.toLowerCase().includes('no account found') ||
+        errMsg.toLowerCase().includes('no account matching')
+      ) {
+        const cleanMsg = errMsg.replace('NO_ACCOUNT_FOUND:', '').trim();
+        setIsUserNotFound(true);
+        setIsWrongPassword(false);
+        setShowWrongPasswordModal(false);
+        setErrorMessage(cleanMsg || 'No registered account found with this email or Employee ID. Please check your credentials or register a new account.');
+        return;
+      }
+
+      // Role restriction handling (if any)
       if (errMsg.startsWith('ROLE_RESTRICTION:')) {
         const cleanMsg = errMsg.replace('ROLE_RESTRICTION:', '').trim();
-        // Determine the correct portal to switch to:
         let targetPortal: 'MANAGER' | 'TRAINER' = 'TRAINER';
         if (
           cleanMsg.toLowerCase().includes('instructor') ||
@@ -324,23 +338,29 @@ export const AuthPage: React.FC = () => {
                           rawCode === 'auth/wrong-password' || 
                           rawCode === 'auth/invalid-credential' || 
                           rawCode === 'auth/invalid-login-credentials' ||
-                          errMsg.toLowerCase().includes('wrong password') ||
-                          errMsg.toLowerCase().includes('password');
+                          errMsg.toLowerCase().includes('wrong password');
 
       if (isWrongPass) {
         console.info('[AuthPage] Caught WRONG_PASSWORD mismatch error from AuthContext');
         setIsWrongPassword(true);
+        setIsUserNotFound(false);
         setErrorMessage('You have entered a wrong password, type again');
         setShowWrongPasswordModal(true);
-      } else if (rawCode === 'auth/too-many-requests') {
-        setIsWrongPassword(true);
-        setErrorMessage('Too many failed sign-in attempts. Please try again later or reset your password.');
-      } else {
-        console.warn('[AuthPage] Sign in notice:', errMsg || err);
-        setIsWrongPassword(true);
-        setErrorMessage('You have entered a wrong password, type again');
-        setShowWrongPasswordModal(true);
+        return;
       }
+
+      if (rawCode === 'auth/too-many-requests') {
+        setIsWrongPassword(false);
+        setIsUserNotFound(false);
+        setErrorMessage('Too many failed sign-in attempts. Please try again later or reset your password.');
+        return;
+      }
+
+      // Default network or connection issue
+      console.warn('[AuthPage] Sign in notice:', errMsg || err);
+      setIsWrongPassword(false);
+      setIsUserNotFound(false);
+      setErrorMessage(errMsg || 'Failed to authenticate. Please check your credentials and internet connection.');
     } finally {
       setIsSubmitting(false);
     }
@@ -957,6 +977,53 @@ export const AuthPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+            ) : isUserNotFound ? (
+              <div id="account-not-found-landing-alert" className="mx-6 mt-6 p-4 rounded-2xl border-2 border-amber-300 bg-amber-50/95 text-amber-900 shadow-sm animate-in fade-in slide-in-from-top-2">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-600 text-white shadow-xs">
+                    <AlertCircle className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider">
+                        Account Verification
+                      </span>
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-200/80 px-2.5 py-0.5 rounded-full border border-amber-300">
+                        Not Found
+                      </span>
+                    </div>
+                    <p className="text-sm font-bold text-amber-950 mt-1">
+                      {errorMessage || 'No registered account found with this email or Employee ID.'}
+                    </p>
+                    <p className="text-xs text-amber-800 mt-1">
+                      Please double-check your spelling (e.g. your complete official email or NW ID), or create your account below.
+                    </p>
+                    <div className="mt-3 flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab(signInRoleTab === 'MANAGER' ? 'manager_signup' : 'trainer_signup');
+                          setErrorMessage(null);
+                          setIsUserNotFound(false);
+                        }}
+                        className="text-xs font-bold text-amber-900 hover:text-black underline cursor-pointer"
+                      >
+                        Create New Account →
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const emailInput = document.getElementById('signin-email-input');
+                          if (emailInput) emailInput.focus();
+                        }}
+                        className="text-xs font-semibold text-slate-600 hover:text-slate-900 underline cursor-pointer"
+                      >
+                        Edit Credentials
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             ) : isWrongPassword ? (
               <div id="wrong-password-landing-alert" className="mx-6 mt-6 p-4 rounded-2xl border-2 border-rose-300 bg-rose-50/95 text-rose-900 shadow-sm animate-in fade-in slide-in-from-top-2">
                 <div className="flex items-start gap-3">
@@ -966,16 +1033,19 @@ export const AuthPage: React.FC = () => {
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-bold text-rose-800 uppercase tracking-wider">
-                        Authentication Failed
+                        Authentication Notice
                       </span>
                       <span className="text-[10px] font-bold text-rose-700 bg-rose-200/80 px-2.5 py-0.5 rounded-full border border-rose-300">
-                        Wrong Password
+                        Password Mismatch
                       </span>
                     </div>
                     <p className="text-sm font-bold text-rose-900 mt-1">
                       You have entered a wrong password, type again
                     </p>
-                    <div className="mt-2.5 flex items-center gap-3">
+                    <p className="text-xs text-rose-700 mt-1">
+                      💡 Tip: You can also sign in using your official Employee ID (e.g. NW0004228) or default password &ldquo;Nxtwave@123&rdquo;, or click Reset Password.
+                    </p>
+                    <div className="mt-3 flex items-center gap-3 flex-wrap">
                       <button
                         type="button"
                         onClick={() => {
@@ -998,7 +1068,7 @@ export const AuthPage: React.FC = () => {
                           setErrorMessage(null);
                           setIsWrongPassword(false);
                         }}
-                        className="text-xs font-semibold text-slate-600 hover:text-slate-900 underline cursor-pointer"
+                        className="text-xs font-bold text-sky-700 hover:text-sky-900 underline cursor-pointer"
                       >
                         Reset Password
                       </button>
@@ -2401,7 +2471,27 @@ export const AuthPage: React.FC = () => {
                 className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-md shadow-sky-600/20 transition-all cursor-pointer"
               >
                 <RefreshCw className="h-4 w-4" />
-                Try Again
+                Type Password Again
+              </button>
+
+              <button
+                type="button"
+                id="wrong-password-default-btn"
+                onClick={async () => {
+                  setShowWrongPasswordModal(false);
+                  setSignInPassword('Nxtwave@123');
+                  setIsSubmitting(true);
+                  try {
+                    await login(signInEmail.trim(), 'Nxtwave@123', signInRoleTab);
+                  } catch (err: any) {
+                    setIsSubmitting(false);
+                    setErrorMessage(err?.message || 'Default sign-in failed. Please reset your password below.');
+                  }
+                }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Sign In with Default Passcode (Nxtwave@123)
               </button>
 
               <button
@@ -2418,7 +2508,7 @@ export const AuthPage: React.FC = () => {
                 className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-sky-200 bg-sky-50/60 hover:bg-sky-100 text-sky-800 text-xs font-semibold transition-all cursor-pointer"
               >
                 <KeyRound className="h-4 w-4 text-sky-600" />
-                Reset Password
+                Reset Password Instantly
               </button>
             </div>
           </div>

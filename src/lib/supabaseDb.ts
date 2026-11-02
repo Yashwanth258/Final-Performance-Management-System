@@ -744,11 +744,62 @@ export interface SupabaseCredentialRecord {
   updated_at?: string;
 }
 
+export const buildCandidateLookupKeys = (input: string): string[] => {
+  const raw = (input || '').trim();
+  if (!raw) return [];
+  const keySet = new Set<string>();
+
+  keySet.add(raw);
+  keySet.add(raw.toLowerCase());
+  keySet.add(raw.toUpperCase());
+
+  const noSpaces = raw.replace(/[\s#-]/g, '');
+  if (noSpaces) {
+    keySet.add(noSpaces);
+    keySet.add(noSpaces.toLowerCase());
+    keySet.add(noSpaces.toUpperCase());
+  }
+
+  // If email without domain
+  if (!raw.includes('@')) {
+    keySet.add(`${raw.toLowerCase()}@nxtwave.co.in`);
+    if (noSpaces) keySet.add(`${noSpaces.toLowerCase()}@nxtwave.co.in`);
+  } else {
+    const userPart = raw.split('@')[0];
+    if (userPart) {
+      keySet.add(userPart);
+      keySet.add(userPart.toLowerCase());
+    }
+  }
+
+  // If employee ID variations
+  const digitsOnly = raw.replace(/[^0-9]/g, '');
+  if (digitsOnly) {
+    keySet.add(`NW${digitsOnly}`);
+    keySet.add(`nw${digitsOnly}`);
+    // Pad to standard 7 digits if shorter (e.g. NW0004228)
+    keySet.add(`NW${digitsOnly.padStart(7, '0')}`);
+    keySet.add(`nw${digitsOnly.padStart(7, '0')}`);
+  }
+
+  return Array.from(keySet).filter(Boolean);
+};
+
 export const lookupProfileByCredentials = async (
   keys: string[]
 ): Promise<{ profile: UserProfile; storedPassword?: string } | null> => {
   try {
-    const cleanKeys = Array.from(new Set(keys.map(k => (k || '').trim()).filter(Boolean)));
+    const rawKeys = Array.from(new Set(keys.map(k => (k || '').trim()).filter(Boolean)));
+    if (rawKeys.length === 0) return null;
+
+    // Expand all raw keys through candidate key generator
+    const candidateSet = new Set<string>();
+    for (const k of rawKeys) {
+      for (const cand of buildCandidateLookupKeys(k)) {
+        candidateSet.add(cand);
+      }
+    }
+    const cleanKeys = Array.from(candidateSet);
     if (cleanKeys.length === 0) return null;
 
     const orFilters = cleanKeys
@@ -762,10 +813,41 @@ export const lookupProfileByCredentials = async (
       .limit(1);
 
     const timeoutPromise = new Promise<{ data: null; error: any }>((_, reject) =>
-      setTimeout(() => reject(new Error('Profile lookup timeout')), 5000)
+      setTimeout(() => reject(new Error('Profile lookup timeout')), 12000)
     );
 
-    const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
+    let { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
+
+    // Fallback: If not found by candidate keys, try fuzzy lookup on employee_id digits or username
+    if ((error || !data || data.length === 0) && rawKeys.length > 0) {
+      const primaryKey = rawKeys[0].trim();
+      const digits = primaryKey.replace(/[^0-9]/g, '');
+      const userPart = primaryKey.includes('@') ? primaryKey.split('@')[0] : primaryKey;
+
+      if (digits && digits.length >= 4) {
+        const fallbackRes = await supabase
+          .from('profiles')
+          .select('*')
+          .ilike('employee_id', `%${digits}%`)
+          .limit(1);
+        if (fallbackRes.data && fallbackRes.data.length > 0) {
+          data = fallbackRes.data;
+          error = null;
+        }
+      }
+
+      if ((!data || data.length === 0) && userPart && userPart.length >= 3) {
+        const fallbackRes = await supabase
+          .from('profiles')
+          .select('*')
+          .ilike('company_email', `%${userPart}%`)
+          .limit(1);
+        if (fallbackRes.data && fallbackRes.data.length > 0) {
+          data = fallbackRes.data;
+          error = null;
+        }
+      }
+    }
 
     if (error || !data || data.length === 0) {
       return null;
@@ -801,7 +883,7 @@ export const lookupProfileByCredentials = async (
 
     return { profile: userProfile, storedPassword };
   } catch (err) {
-    console.warn('[Supabase] lookupProfileByCredentials error:', err);
+    console.warn('[Supabase] lookupProfileByCredentials notice:', err);
     return null;
   }
 };
@@ -812,15 +894,21 @@ export const updateProfilePassword = async (
 ): Promise<boolean> => {
   try {
     const clean = (emailOrEmpId || '').trim();
-    if (!clean || !newPassword) return false;
+    const cleanPass = (newPassword || '').trim();
+    if (!clean || !cleanPass) return false;
+
+    // Lookup profile first to find exact employee_id
+    const found = await lookupProfileByCredentials([clean]);
+    const empId = found?.profile.employeeId || clean;
+    const email = found?.profile.companyEmail || clean;
 
     const { error } = await supabase
       .from('profiles')
       .update({
-        avatar_url: `AUTH_PW:${newPassword}`,
+        avatar_url: `AUTH_PW:${cleanPass}`,
         updated_at: new Date().toISOString(),
       })
-      .or(`company_email.ilike."${clean}",employee_id.ilike."${clean}",uid.eq."${clean}"`);
+      .or(`employee_id.eq."${empId}",company_email.eq."${email}"`);
 
     if (error) {
       console.warn('[Supabase] updateProfilePassword error:', error.message);
