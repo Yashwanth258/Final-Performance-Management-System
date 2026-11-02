@@ -72,17 +72,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Restore saved session on startup directly from Supabase
   useEffect(() => {
+    let isMounted = true;
+
     const restoreSavedSession = async () => {
       try {
         const savedUid = localStorage.getItem(SB_SESSION_KEY);
         if (savedUid) {
-          // Always load profile from Supabase, never from local storage
-          const { data, error } = await supabase
+          // Wrap Supabase query with a 3.5s timeout to prevent infinite hanging
+          const fetchPromise = supabase
             .from('profiles')
             .select('*')
             .or(`uid.eq."${savedUid}",employee_id.eq."${savedUid}",company_email.eq."${savedUid}"`)
             .limit(1)
             .maybeSingle();
+
+          const timeoutPromise = new Promise<{ data: null; error: any }>((_, reject) => {
+            setTimeout(() => reject(new Error('Session restore timeout')), 3500);
+          });
+
+          const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
+
+          if (!isMounted) return;
 
           if (error) {
             console.log('[Auth] Profile load from Supabase error:', error);
@@ -124,27 +134,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
       } catch (err) {
-        console.log('[Auth] Session restoration error:', err);
+        console.log('[Auth] Session restoration error/timeout:', err);
+        // Clean up invalid or stalled session key so user is never locked out
+        localStorage.removeItem(SB_SESSION_KEY);
+        setUserProfile(null);
+        setCurrentUser(null);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     restoreSavedSession();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const login = async (emailOrId: string, pass: string, portalRole?: 'MANAGER' | 'TRAINER' | 'TRAINEE') => {
-    setLoading(true);
+    // Note: Do NOT touch global `loading` here.
+    // Global `loading` is strictly for initial app-boot session restoration.
+    // Touching it here unmounts AuthPage and causes the infinite/flickering "Restoring active session..." spinner.
     const cleanInput = (emailOrId || '').trim();
     const cleanPass = (pass || '').trim();
 
     if (!cleanInput) {
-      setLoading(false);
       throw new Error('NO_ACCOUNT_FOUND: Please enter your work email or employee ID.');
     }
 
     if (!cleanPass) {
-      setLoading(false);
       throw new Error('WRONG_PASSWORD: You have entered a wrong password, type again');
     }
 
@@ -157,7 +177,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const lookupResult = await lookupProfileByCredentials(lookupKeys);
 
       if (!lookupResult) {
-        setLoading(false);
         throw new Error(`NO_ACCOUNT_FOUND: No registered account found with this email or Employee ID ("${cleanInput}"). Please check your credentials or create a new account.`);
       }
 
@@ -165,18 +184,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Enforce portal role consistency
       if (portalRole === 'MANAGER' && userProfileData.role !== 'MANAGER') {
-        setLoading(false);
         throw new Error('ROLE_RESTRICTION: This account is registered as an Instructor. Please sign in through the Instructor Portal, or register as an Instructor.');
       }
       if ((portalRole === 'TRAINER' || portalRole === 'TRAINEE') && userProfileData.role === 'MANAGER') {
-        setLoading(false);
         throw new Error('ROLE_RESTRICTION: This account is registered as a Manager. Please switch to the Manager Sign In portal to log in.');
       }
 
       // Check password
       if (storedPassword !== undefined) {
         if (cleanPass !== storedPassword.trim()) {
-          setLoading(false);
           throw new Error('WRONG_PASSWORD: You have entered a wrong password, type again');
         }
       } else {
@@ -197,15 +213,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         displayName: userProfileData.fullName,
       });
       setIsDemoMode(false);
-      setLoading(false);
     } catch (err: any) {
-      setLoading(false);
       throw err;
     }
   };
 
   const registerUser = async (data: RegisterUserData) => {
-    setLoading(true);
     const cleanEmail = data.companyEmail.trim().toLowerCase();
     const cleanEmpId = data.employeeId.trim().toUpperCase();
     const cleanPass = data.password?.trim() || 'password';
@@ -336,9 +349,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         displayName: newProfile.fullName,
       });
       setIsDemoMode(false);
-      setLoading(false);
     } catch (err: any) {
-      setLoading(false);
       throw err;
     }
   };

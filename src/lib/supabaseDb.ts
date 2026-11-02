@@ -755,11 +755,17 @@ export const lookupProfileByCredentials = async (
       .map(k => `company_email.ilike."${k}",employee_id.ilike."${k}",uid.eq."${k}"`)
       .join(',');
 
-    const { data, error } = await supabase
+    const fetchPromise = supabase
       .from('profiles')
       .select('*')
       .or(orFilters)
       .limit(1);
+
+    const timeoutPromise = new Promise<{ data: null; error: any }>((_, reject) =>
+      setTimeout(() => reject(new Error('Profile lookup timeout')), 5000)
+    );
+
+    const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
 
     if (error || !data || data.length === 0) {
       return null;

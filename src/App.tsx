@@ -139,6 +139,18 @@ const MainAppContent: React.FC = () => {
             <span className="text-sm font-bold text-slate-800 tracking-tight">DailySync</span>
             <span className="text-[11px] font-semibold text-slate-500">Restoring active session...</span>
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                localStorage.removeItem('sb-active-user-uid');
+              } catch (_) {}
+              window.location.reload();
+            }}
+            className="mt-2 text-xs font-medium text-sky-700 hover:text-sky-900 underline cursor-pointer transition-colors"
+          >
+            Taking longer than usual? Click here to Sign In
+          </button>
         </div>
       </div>
     );
