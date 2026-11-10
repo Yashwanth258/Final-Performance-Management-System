@@ -238,10 +238,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const { profile: userProfileData, storedPassword, storedPasswordHash, isOfflineFallback } = lookupResult;
 
-      // Enforce portal role consistency gracefully without blocking legitimate logins:
-      // If an Instructor signed in while Manager tab was selected, or vice-versa,
-      // adapt seamlessly to their registered role in Supabase.
-      const resolvedRole = userProfileData.role || (portalRole === 'MANAGER' ? 'MANAGER' : 'TRAINER');
+      // Role check: Only log the user in when their role matches the page they used.
+      const userRole = (userProfileData.role || '').toUpperCase();
+      const isManagerAccount = userRole === 'MANAGER';
+
+      if (portalRole === 'TRAINER' && isManagerAccount) {
+        const err = new Error('You are a Manager. Please sign in on the Manager sign-in page.');
+        (err as any).code = 'ROLE_MISMATCH';
+        (err as any).targetPortal = 'MANAGER';
+        throw err;
+      }
+
+      if (portalRole === 'MANAGER' && !isManagerAccount) {
+        const err = new Error('You are an Instructor. Please sign in on the Instructor sign-in page.');
+        (err as any).code = 'ROLE_MISMATCH';
+        (err as any).targetPortal = 'TRAINER';
+        throw err;
+      }
+
+      const resolvedRole = isManagerAccount ? 'MANAGER' : 'TRAINER';
       userProfileData.role = resolvedRole;
 
       // Check password:

@@ -352,7 +352,32 @@ export const AuthPage: React.FC = () => {
         return;
       }
 
-      // 3. User found but password is wrong -> show "Incorrect email or password."
+      // 3. Role check: Mismatch between user role and selected sign-in tab
+      const isRoleMismatch = 
+        rawCode === 'ROLE_MISMATCH' ||
+        errMsg.startsWith('ROLE_RESTRICTION:') ||
+        errMsg.toLowerCase().includes('you are a manager') ||
+        errMsg.toLowerCase().includes('you are an instructor');
+
+      if (isRoleMismatch) {
+        const cleanMsg = errMsg.replace('ROLE_RESTRICTION:', '').trim();
+        const targetPortal: 'MANAGER' | 'TRAINER' = 
+          cleanMsg.toLowerCase().includes('manager') ? 'MANAGER' : 'TRAINER';
+
+        setIsWrongPassword(false);
+        setIsUserNotFound(false);
+        setShowWrongPasswordModal(false);
+        setRoleRestriction({
+          emailOrId: email,
+          message: cleanMsg,
+          targetPortal,
+        });
+        setShowRoleRestrictionModal(true);
+        setErrorMessage(cleanMsg);
+        return;
+      }
+
+      // 4. User found but password is wrong -> show "Incorrect email or password."
       const isWrongPass = 
         rawCode === 'WRONG_PASSWORD' || 
         errMsg === 'Incorrect email or password.' ||
@@ -368,33 +393,6 @@ export const AuthPage: React.FC = () => {
         setIsUserNotFound(false);
         setShowWrongPasswordModal(true);
         setErrorMessage('Incorrect email or password.');
-        return;
-      }
-
-      // Role restriction handling (if any)
-      if (errMsg.startsWith('ROLE_RESTRICTION:')) {
-        const cleanMsg = errMsg.replace('ROLE_RESTRICTION:', '').trim();
-        let targetPortal: 'MANAGER' | 'TRAINER' = 'TRAINER';
-        if (
-          cleanMsg.toLowerCase().includes('instructor') ||
-          cleanMsg.toLowerCase().includes('trainer') ||
-          signInRoleTab === 'MANAGER'
-        ) {
-          targetPortal = 'TRAINER';
-        } else if (
-          cleanMsg.toLowerCase().includes('manager') ||
-          signInRoleTab === 'TRAINER'
-        ) {
-          targetPortal = 'MANAGER';
-        }
-
-        setRoleRestriction({
-          emailOrId: email,
-          message: cleanMsg,
-          targetPortal,
-        });
-        setShowRoleRestrictionModal(true);
-        setErrorMessage(cleanMsg);
         return;
       }
 
@@ -2725,10 +2723,10 @@ export const AuthPage: React.FC = () => {
             </div>
 
             <h3 id="role-restriction-modal-title" className="text-xl font-bold text-slate-900">
-              {roleRestriction.targetPortal === 'TRAINER' ? 'Instructor Account' : 'Manager Portal Required'}
+              {roleRestriction.targetPortal === 'TRAINER' ? 'Instructor Sign-In Required' : 'Manager Sign-In Required'}
             </h3>
 
-            <p className="text-xs text-slate-600 mt-2 leading-relaxed max-w-xs">
+            <p className="text-sm font-medium text-slate-700 mt-2 leading-relaxed max-w-xs">
               {roleRestriction.message}
             </p>
 
