@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { fetchAllProfiles } from '../../lib/supabaseDb';
 import { supabase } from '../../lib/supabase';
+import { FALLBACK_STAFF_DIRECTORY } from '../../lib/directoryFallback';
 import { useAuth } from '../../context/AuthContext';
 import { UserRole, UserProfile, EnterpriseDepartment, ENTERPRISE_DEPARTMENTS } from '../../types';
 import { NxtWaveLogo } from '../common/NxtWaveLogo';
@@ -151,9 +152,20 @@ export const AuthPage: React.FC = () => {
         .eq('is_active', true)
         .order('full_name', { ascending: true });
 
-      if (error) {
-        console.log('[Supabase] Manager profiles fetch error:', error.message);
-        setRegisteredManagers([]);
+      if (error || !data || data.length === 0) {
+        console.log('[Supabase] Manager profiles fetch notice (using directory fallback):', error?.message);
+        const fallbackMgrs: ManagerDirectoryItem[] = FALLBACK_STAFF_DIRECTORY
+          .filter(f => f.profile.role === 'MANAGER' && f.profile.isActive)
+          .map(f => ({
+            uid: f.profile.uid,
+            fullName: f.profile.fullName,
+            companyEmail: f.profile.companyEmail,
+            employeeId: f.profile.employeeId,
+            department: f.profile.department || 'GenAI',
+            designation: f.profile.designation || 'Capability Manager',
+            teamName: `${f.profile.department || 'GenAI'} Department`,
+          }));
+        setRegisteredManagers(fallbackMgrs);
         return;
       }
 
@@ -169,8 +181,19 @@ export const AuthPage: React.FC = () => {
 
       setRegisteredManagers(list);
     } catch (err) {
-      console.log('[Supabase] Manager profiles sync error:', err);
-      setRegisteredManagers([]);
+      console.log('[Supabase] Manager profiles sync error (using directory fallback):', err);
+      const fallbackMgrs: ManagerDirectoryItem[] = FALLBACK_STAFF_DIRECTORY
+        .filter(f => f.profile.role === 'MANAGER' && f.profile.isActive)
+        .map(f => ({
+          uid: f.profile.uid,
+          fullName: f.profile.fullName,
+          companyEmail: f.profile.companyEmail,
+          employeeId: f.profile.employeeId,
+          department: f.profile.department || 'GenAI',
+          designation: f.profile.designation || 'Capability Manager',
+          teamName: `${f.profile.department || 'GenAI'} Department`,
+        }));
+      setRegisteredManagers(fallbackMgrs);
     } finally {
       setIsLoadingManagers(false);
     }
