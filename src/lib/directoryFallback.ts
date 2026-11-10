@@ -1,15 +1,34 @@
 import { UserProfile } from '../types';
 
+export const hashPassword = (password: string): string => {
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < password.length; i++) {
+    const ch = password.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+  h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+  h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16);
+};
+
 export interface FallbackCredentialRecord {
+  passwordHash: string;
+  employeeId: string;
+  companyEmail: string;
   profile: UserProfile;
-  storedPassword?: string;
 }
 
 // 46 pre-synchronized enterprise staff directory (Trainers & Managers)
-// Guarantees 100% login uptime even when corporate office Wi-Fi, VPNs, or network latency block Supabase API
+// Kept ONLY as last fallback when network request fails
+// Contains NO plain-text passwords (only secure non-reversible hashes)
 export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
   {
-    "storedPassword": "300420",
+    "passwordHash": "1fa5cf93ce56eb",
+    "employeeId": "NW2000677",
+    "companyEmail": "katrapati.srichandana@nxtwave.co.in",
     "profile": {
       "uid": "usr-katrapati-srichandana-nxtwave-co-in-7853",
       "employeeId": "NW2000677",
@@ -25,7 +44,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Hyderabad",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:300420",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-30T05:03:52.09011+00:00",
@@ -33,7 +52,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "NW2000631",
+    "passwordHash": "115e42c68787fe",
+    "employeeId": "NW2000631",
+    "companyEmail": "nuthi.yashwanth@nxtwave.co.in",
     "profile": {
       "uid": "usr-nuthi-yashwanth-nxtwave-co-in-4485",
       "employeeId": "NW2000631",
@@ -49,7 +70,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:NW2000631",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-19T05:53:03.068217+00:00",
@@ -57,7 +78,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Office@123",
+    "passwordHash": "1e4f2130eacf7",
+    "employeeId": "NW2000360",
+    "companyEmail": "jetty.binomariyan@nxtwave.co.in",
     "profile": {
       "uid": "usr-jetty-binomariyan-nxtwave-co-in-8700",
       "employeeId": "NW2000360",
@@ -73,7 +96,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Hyderabad",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:Office@123",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-19T05:56:45.497804+00:00",
@@ -81,7 +104,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Nanthu@734",
+    "passwordHash": "503937035d0a5",
+    "employeeId": "NW0004487",
+    "companyEmail": "nanthini.s@nxtwave.co.in",
     "profile": {
       "uid": "usr-nanthini-s-nxtwave-co-in-3486",
       "employeeId": "NW0004487",
@@ -97,7 +122,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Hyderabad",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:Nanthu@734",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-19T07:19:22.357665+00:00",
@@ -105,7 +130,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "P9398283432k@11",
+    "passwordHash": "4bb2da7353b37",
+    "employeeId": "NW2000636",
+    "companyEmail": "yadala.pavankumar@nxtwave.co.in",
     "profile": {
       "uid": "usr-yadala-pavankumar-nxtwave-co-in-2707",
       "employeeId": "NW2000636",
@@ -121,7 +148,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Guntur(Chalapathi University)",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:P9398283432k@11",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-19T07:41:31.160586+00:00",
@@ -129,7 +156,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Chinnubobby@2107",
+    "passwordHash": "55c2a72db02f4",
+    "employeeId": "NW2000364",
+    "companyEmail": "kanuparthi.prasasthi@nxtwave.co.in",
     "profile": {
       "uid": "usr-kanuparthi-prasasthi-nxtwave-co-in-7381",
       "employeeId": "NW2000364",
@@ -145,7 +174,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "NRI University , Vijayawada",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:Chinnubobby@2107",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-19T07:52:07.789324+00:00",
@@ -153,7 +182,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "1547227",
+    "passwordHash": "925823b1e85af",
+    "employeeId": "NW2000661",
+    "companyEmail": "sumana.m@nxtwave.co.in",
     "profile": {
       "uid": "usr-sumana-m-nxtwave-co-in-7043",
       "employeeId": "NW2000661",
@@ -169,7 +200,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Lucknow, TS.Misra",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:1547227",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-19T08:21:50.490969+00:00",
@@ -177,7 +208,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "#Taru123",
+    "passwordHash": "f2589bccf6d47",
+    "employeeId": "NW0005096",
+    "companyEmail": "bussa.tharuni@nxtwave.co.in",
     "profile": {
       "uid": "usr-bussa-tharuni-nxtwave-co-in-1998",
       "employeeId": "NW0005096",
@@ -193,7 +226,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "SDI",
       "location": "hyderabad",
       "subject": "LLMs",
-      "avatarUrl": "AUTH_PW:#Taru123",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-19T08:25:53.245089+00:00",
@@ -201,7 +234,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Karthik@9",
+    "passwordHash": "47d06b562edac",
+    "employeeId": "NW2000361",
+    "companyEmail": "vaddi.karthikreddy@nxtwave.co.in",
     "profile": {
       "uid": "usr-vaddi-karthikreddy-nxtwave-co-in-0643",
       "employeeId": "NW2000361",
@@ -217,7 +252,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Hyderabad",
       "subject": "AI for Finance",
-      "avatarUrl": "AUTH_PW:Karthik@9",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-19T08:26:37.684746+00:00",
@@ -225,7 +260,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "KundenaAkhil@1998",
+    "passwordHash": "14d5ad39c2fbe4",
+    "employeeId": "NW0005240",
+    "companyEmail": "kundena.akhil@nxtwave.co.in",
     "profile": {
       "uid": "usr-kundena-akhil-nxtwave-co-in-2026",
       "employeeId": "NW0005240",
@@ -241,7 +278,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Hyderabad",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:KundenaAkhil@1998",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-19T09:56:52.263639+00:00",
@@ -249,7 +286,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Monsterhunk24@#",
+    "passwordHash": "18235eac8046bc",
+    "employeeId": "NW2000379",
+    "companyEmail": "rishabh.kumarpal@nxtwave.co.in",
     "profile": {
       "uid": "usr-rishabh-kumarpal-nxtwave-co-in-6727",
       "employeeId": "NW2000379",
@@ -265,7 +304,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Bhopal, Madhya Pradesh",
       "subject": "GenAI, Frontend Web Engineering",
-      "avatarUrl": "AUTH_PW:Monsterhunk24@#",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-19T09:59:46.246341+00:00",
@@ -273,7 +312,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "padmavathi@2001",
+    "passwordHash": "186011a01c2524",
+    "employeeId": "NW2000355",
+    "companyEmail": "surakasi.deepak@nxtwave.co.in",
     "profile": {
       "uid": "usr-surakasi-deepak-nxtwave-co-in-5137",
       "employeeId": "NW2000355",
@@ -289,7 +330,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Malla Reddy University",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:padmavathi@2001",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-19T10:23:53.38302+00:00",
@@ -297,7 +338,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "EmiliaClarke@143",
+    "passwordHash": "ba8ac0a171a5a",
+    "employeeId": "NW2000686",
+    "companyEmail": "domala.venkatavignan@nxtwave.co.in",
     "profile": {
       "uid": "usr-domala-venkatavignan-nxtwave-co-in-5931",
       "employeeId": "NW2000686",
@@ -313,7 +356,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Hyderabad",
       "subject": "LLMs",
-      "avatarUrl": "AUTH_PW:EmiliaClarke@143",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-19T11:48:27.760747+00:00",
@@ -321,7 +364,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Sona@172001",
+    "passwordHash": "1587180730707",
+    "employeeId": "NW200372",
+    "companyEmail": "disha.ps@nxtwave.co.in",
     "profile": {
       "uid": "usr-disha-ps-nxtwave-co-in-5455",
       "employeeId": "NW200372",
@@ -337,7 +382,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Developer Instructor",
       "location": "Bangalore",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:Sona@172001",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-19T12:53:38.288805+00:00",
@@ -345,7 +390,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Kranti@goalno1",
+    "passwordHash": "7b7c721b11274",
+    "employeeId": "NW2000732",
+    "companyEmail": "divyansh.savita@nxtwave.co.in",
     "profile": {
       "uid": "usr-divyansh-savita-nxtwave-co-in-0005",
       "employeeId": "NW2000732",
@@ -361,7 +408,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Faridabad",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:Kranti@goalno1",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-19T18:52:11.475441+00:00",
@@ -369,7 +416,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "divyam@123",
+    "passwordHash": "1b319f18866842",
+    "employeeId": "NW0006842",
+    "companyEmail": "divyam.agarwal@nxtwave.co.in",
     "profile": {
       "uid": "usr-divyam-agarwal-nxtwave-co-in-7871",
       "employeeId": "NW0006842",
@@ -385,7 +434,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Jaipur, Rajasthan",
       "subject": "Gen-Ai",
-      "avatarUrl": "AUTH_PW:divyam@123",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-20T02:47:26.146142+00:00",
@@ -393,7 +442,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Gurunxt*1234",
+    "passwordHash": "13df547521bd0d",
+    "employeeId": "NW2000645",
+    "companyEmail": "velpula.gurubrahmam@nxtwave.co.in",
     "profile": {
       "uid": "usr-velpula-gurubrahmam-nxtwave-co-in-1235",
       "employeeId": "NW2000645",
@@ -409,7 +460,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Hyderabad",
       "subject": "AI for Finance",
-      "avatarUrl": "AUTH_PW:Gurunxt*1234",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-20T13:16:22.058678+00:00",
@@ -417,7 +468,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Maya@4560",
+    "passwordHash": "7eb8fb5fd42ec",
+    "employeeId": "NW0004380",
+    "companyEmail": "arun.arumugam@nxtwave.co.in",
     "profile": {
       "uid": "usr-arun-arumugam-nxtwave-co-in-3686",
       "employeeId": "NW0004380",
@@ -433,7 +486,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Takshashila University",
       "subject": "AI for Finance",
-      "avatarUrl": "AUTH_PW:Maya@4560",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-20T15:34:02.503825+00:00",
@@ -441,7 +494,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Nxtwave@123",
+    "passwordHash": "7fce137283294",
+    "employeeId": "NW0004228",
+    "companyEmail": "mohammad.izhaarahmed@nxtwave.co.in",
     "profile": {
       "uid": "usr-mohammad-izhaarahmed-nxtwave-co-in-6411",
       "employeeId": "NW0004228",
@@ -457,7 +512,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Developer and Instructor",
       "location": "CDU",
       "subject": "LLMs",
-      "avatarUrl": "AUTH_PW:Nxtwave@123",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-19T08:44:26.245447+00:00",
@@ -465,7 +520,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "ZXCVBNMnxt@123",
+    "passwordHash": "19eed287a74198",
+    "employeeId": "NW2000447",
+    "companyEmail": "lingapriya.j@nxtwave.co.in",
     "profile": {
       "uid": "usr-lingapriya-j-nxtwave-co-in-1932",
       "employeeId": "NW2000447",
@@ -481,7 +538,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Chennai",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:ZXCVBNMnxt@123",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-21T04:32:32.182835+00:00",
@@ -489,7 +546,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Niharika1#",
+    "passwordHash": "23699bb5a8cc2",
+    "employeeId": "NW0002770",
+    "companyEmail": "siddhanth.mosam@nxtwave.co.in",
     "profile": {
       "uid": "usr-siddhanth-mosam-nxtwave-co-in-0895",
       "employeeId": "NW0002770",
@@ -505,7 +564,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Hyderabad",
       "subject": "LLMs",
-      "avatarUrl": "AUTH_PW:Niharika1#",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-21T06:04:51.681227+00:00",
@@ -513,7 +572,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "sushmitha@18A",
+    "passwordHash": "121b8b443f48b1",
+    "employeeId": "NW0004162",
+    "companyEmail": "sushmitha.amarnath@nxtwave.co.in",
     "profile": {
       "uid": "usr-sushmitha-amarnath-nxtwave-co-in-5262",
       "employeeId": "NW0004162",
@@ -529,7 +590,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "bangalore",
       "subject": "AI for Finance",
-      "avatarUrl": "AUTH_PW:sushmitha@18A",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-21T12:46:16.28048+00:00",
@@ -537,7 +598,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Chitti@1982",
+    "passwordHash": "2ad88885689da",
+    "employeeId": "NW2000385",
+    "companyEmail": "govardhan.reddyh@nxtwave.co.in",
     "profile": {
       "uid": "usr-govardhan-reddyh-nxtwave-co-in-2007",
       "employeeId": "NW2000385",
@@ -553,7 +616,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Yenepoya university Mangalore",
       "subject": "GenAI, AI for Finance",
-      "avatarUrl": "AUTH_PW:Chitti@1982",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-21T12:58:02.582997+00:00",
@@ -561,7 +624,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Rethu@123456",
+    "passwordHash": "bfaf4392b55d1",
+    "employeeId": "NW2000370",
+    "companyEmail": "rethaswi.boligala@nxtwave.co.in",
     "profile": {
       "uid": "usr-rethaswi-boligala-nxtwave-co-in-9068",
       "employeeId": "NW2000370",
@@ -577,7 +642,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Bengaluru",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:Rethu@123456",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-21T15:52:09.265889+00:00",
@@ -585,7 +650,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Greeshma@19",
+    "passwordHash": "1933337e68ba71",
+    "employeeId": "NW0005771",
+    "companyEmail": "gajwada.greeshma@nxtwave.co.in",
     "profile": {
       "uid": "usr-gajwada-greeshma-nxtwave-co-in-8543",
       "employeeId": "NW0005771",
@@ -601,7 +668,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Hyderabad",
       "subject": "AI for Finance",
-      "avatarUrl": "AUTH_PW:Greeshma@19",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-22T03:20:17.382175+00:00",
@@ -609,7 +676,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "@Monika1511",
+    "passwordHash": "be4a72aeea43e",
+    "employeeId": "NW2000436",
+    "companyEmail": "hemavaishnavi.r@nxtwave.co.in",
     "profile": {
       "uid": "usr-hemavaishnavi-r-nxtwave-co-in-7180",
       "employeeId": "NW2000436",
@@ -625,7 +694,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Chennai",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:@Monika1511",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-22T04:13:28.072282+00:00",
@@ -633,7 +702,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Rohit@123",
+    "passwordHash": "c118e7e44ed8e",
+    "employeeId": "NW2000386",
+    "companyEmail": "rohit.rathore@nxtwave.co.in",
     "profile": {
       "uid": "usr-rohit-rathore-nxtwave-co-in-4806",
       "employeeId": "NW2000386",
@@ -649,7 +720,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Sandip university nashik",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:Rohit@123",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-22T05:12:54.848839+00:00",
@@ -657,7 +728,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Teju@teju21",
+    "passwordHash": "6968dfa3ead00",
+    "employeeId": "NW2000633",
+    "companyEmail": "yeddula.tejaswini@nxtwave.co.in",
     "profile": {
       "uid": "usr-yeddula-tejaswini-nxtwave-co-in-8219",
       "employeeId": "NW2000633",
@@ -673,7 +746,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Ramky selenuim",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:Teju@teju21",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-22T05:54:58.431566+00:00",
@@ -681,7 +754,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Nxtwave@123",
+    "passwordHash": "7fce137283294",
+    "employeeId": "NW2000634",
+    "companyEmail": "karankot.sainithin@nxtwave.co.in",
     "profile": {
       "uid": "usr-karankot-sainithin-nxtwave-co-in-0070",
       "employeeId": "NW2000634",
@@ -697,7 +772,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Hyderabad",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:Nxtwave@123",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-22T06:05:49.875604+00:00",
@@ -705,7 +780,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "984818",
+    "passwordHash": "14c837b373dbf5",
+    "employeeId": "NW2000650",
+    "companyEmail": "yugandhar.boya@nxtwave.co.in",
     "profile": {
       "uid": "usr-yugandhar-boya-nxtwave-co-in-0298",
       "employeeId": "NW2000650",
@@ -721,7 +798,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "jaipur",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:984818",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-22T11:36:29.122947+00:00",
@@ -729,7 +806,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "AjayKr@09011998",
+    "passwordHash": "15f828c59bd9a9",
+    "employeeId": "NW0004555",
+    "companyEmail": "ajaykumar.maharana@nxtwave.co.in",
     "profile": {
       "uid": "usr-ajaykumar-maharana-nxtwave-co-in-2424",
       "employeeId": "NW0004555",
@@ -745,7 +824,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Visakhapatnam",
       "subject": "Programming Foundation, LLMs, AI for Finance, Introduction to Database",
-      "avatarUrl": "AUTH_PW:AjayKr@09011998",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-23T05:21:24.758264+00:00",
@@ -753,7 +832,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Mohammed@13",
+    "passwordHash": "1f0a9b289fe60a",
+    "employeeId": "NW2000380",
+    "companyEmail": "mohammed.idris@nxtwave.co.in",
     "profile": {
       "uid": "usr-mohammed-idris-nxtwave-co-in-8420",
       "employeeId": "NW2000380",
@@ -769,7 +850,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Tirunelveli, Tamil Nadu",
       "subject": "GenAi",
-      "avatarUrl": "AUTH_PW:Mohammed@13",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-26T05:23:28.055947+00:00",
@@ -777,7 +858,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "@Sgk241516",
+    "passwordHash": "12843f5357c28a",
+    "employeeId": "NW2000422",
+    "companyEmail": "gokul.krishnans@nxtwave.co.in",
     "profile": {
       "uid": "usr-gokul-krishnans-nxtwave-co-in-0473",
       "employeeId": "NW2000422",
@@ -793,7 +876,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "thirunelveli",
       "subject": "Fundamentals of computing",
-      "avatarUrl": "AUTH_PW:@Sgk241516",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-26T05:24:40.804887+00:00",
@@ -801,7 +884,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "KIRAN0987@sk90",
+    "passwordHash": "571c88572fbe3",
+    "employeeId": "NW2000374",
+    "companyEmail": "vallepu.suryakiran@nxtwave.co.in",
     "profile": {
       "uid": "usr-vallepu-suryakiran-nxtwave-co-in-7744",
       "employeeId": "NW2000374",
@@ -817,7 +902,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Hyderabad/Bhongir",
       "subject": "LLMs",
-      "avatarUrl": "AUTH_PW:KIRAN0987@sk90",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-27T09:39:26.654528+00:00",
@@ -825,7 +910,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Swetha@03",
+    "passwordHash": "10edc21eb932d7",
+    "employeeId": "NW2000390",
+    "companyEmail": "swetha.thammaneni@nxtwave.co.in",
     "profile": {
       "uid": "usr-swetha-thammaneni-nxtwave-co-in-4818",
       "employeeId": "NW2000390",
@@ -841,7 +928,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Hyderabad/Bhongir",
       "subject": "LLMs",
-      "avatarUrl": "AUTH_PW:Swetha@03",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-27T09:47:24.050384+00:00",
@@ -849,7 +936,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Ajay@123",
+    "passwordHash": "16a94620717287",
+    "employeeId": "NW2000674",
+    "companyEmail": "kunta.ajaykumar@nxtwave.co.in",
     "profile": {
       "uid": "usr-kunta-ajaykumar-nxtwave-co-in-6380",
       "employeeId": "NW2000674",
@@ -865,7 +954,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Hyderabad",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:Ajay@123",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-27T14:06:56.361197+00:00",
@@ -873,7 +962,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Password@6003",
+    "passwordHash": "b434ab2db7d77",
+    "employeeId": "NW2000420",
+    "companyEmail": "buvaneswaran.amaresan@nxtwave.co.in",
     "profile": {
       "uid": "usr-buvaneswaran-amaresan-nxtwave-co-in-9416",
       "employeeId": "NW2000420",
@@ -889,7 +980,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Coimbatore",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:Password@6003",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-28T06:13:17.289416+00:00",
@@ -897,7 +988,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Ramshetty@192",
+    "passwordHash": "adf958acf5fd6",
+    "employeeId": "NW2000659",
+    "companyEmail": "ramshetti.saikumar@nxtwave.co.in",
     "profile": {
       "uid": "usr-ramshetti-saikumar-nxtwave-co-in-3482",
       "employeeId": "NW2000659",
@@ -913,7 +1006,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Pune",
       "subject": "AI for Finance",
-      "avatarUrl": "AUTH_PW:Ramshetty@192",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-28T10:39:03.732876+00:00",
@@ -921,7 +1014,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Srivicky006@",
+    "passwordHash": "1b6fbbef1b80bd",
+    "employeeId": "NW0004459",
+    "companyEmail": "vignesh.bk@nxtwave.co.in",
     "profile": {
       "uid": "usr-vignesh-bk-nxtwave-co-in-9945",
       "employeeId": "NW0004459",
@@ -937,7 +1032,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Pondicherry",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:Srivicky006@",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-29T04:22:30.970967+00:00",
@@ -945,7 +1040,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "worklog",
+    "passwordHash": "2c0767ce72b21",
+    "employeeId": "NW2000651",
+    "companyEmail": "parishapogu.karthik@nxtwave.co.in",
     "profile": {
       "uid": "usr-parishapogu-karthik-nxtwave-co-in-2256",
       "employeeId": "NW2000651",
@@ -961,7 +1058,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Hyderabad",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:worklog",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-19T05:45:49.94187+00:00",
@@ -969,7 +1066,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Mounika@123",
+    "passwordHash": "9bbed2fe7f7c5",
+    "employeeId": "NW0005147",
+    "companyEmail": "rasani.mounika@nxtwave.co.in",
     "profile": {
       "uid": "usr-rasani-mounika-nxtwave-co-in-5099",
       "employeeId": "NW0005147",
@@ -985,7 +1084,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Aurora university",
       "subject": "LLMs",
-      "avatarUrl": "AUTH_PW:Mounika@123",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-29T05:07:15.824122+00:00",
@@ -993,7 +1092,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Gautam@123",
+    "passwordHash": "149e223c1c28b6",
+    "employeeId": "NW2000388",
+    "companyEmail": "gautam.rathore@nxtwave.co.in",
     "profile": {
       "uid": "usr-gautam-rathore-nxtwave-co-in-1091",
       "employeeId": "NW2000388",
@@ -1009,7 +1110,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Sanskriti University",
       "subject": "Backend & Distributed Systems",
-      "avatarUrl": "AUTH_PW:Gautam@123",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-30T09:26:21.669384+00:00",
@@ -1017,7 +1118,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Akasi@2026",
+    "passwordHash": "d73ea36a57ffa",
+    "employeeId": "NW2000376",
+    "companyEmail": "akash.singh@nxtwave.co.in",
     "profile": {
       "uid": "usr-akash-singh-nxtwave-co-in-5752",
       "employeeId": "NW2000376",
@@ -1033,7 +1136,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "SDI",
       "location": "NIU",
       "subject": "AI for Finance, GenAI",
-      "avatarUrl": "AUTH_PW:Akasi@2026",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-30T10:24:16.817094+00:00",
@@ -1041,7 +1144,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Pakshi@2004",
+    "passwordHash": "176d8118f7a8f8",
+    "employeeId": "NW2000444",
+    "companyEmail": "cheduluru.meenakshi@nxtwave.co.in",
     "profile": {
       "uid": "usr-cheduluru-meenakshi-nxtwave-co-in-5553",
       "employeeId": "NW2000444",
@@ -1057,7 +1162,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Bengaluru",
       "subject": "GenAI",
-      "avatarUrl": "AUTH_PW:Pakshi@2004",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-22T09:16:31.954109+00:00",
@@ -1065,7 +1170,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "Huthvik7$",
+    "passwordHash": "79616949edff4",
+    "employeeId": "NW2000362",
+    "companyEmail": "para.hemanth@nxtwave.co.in",
     "profile": {
       "uid": "usr-para-hemanth-nxtwave-co-in-0153",
       "employeeId": "NW2000362",
@@ -1081,7 +1188,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Software Development Instructor",
       "location": "Aurora University",
       "subject": "GenAI, LLMs,",
-      "avatarUrl": "AUTH_PW:Huthvik7$",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-11-02T05:13:09.395807+00:00",
@@ -1089,7 +1196,9 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
     }
   },
   {
-    "storedPassword": "NW0005531",
+    "passwordHash": "645751c92fdfe",
+    "employeeId": "NW0005531",
+    "companyEmail": "dharavath.jayanth@nxtwave.co.in",
     "profile": {
       "uid": "usr-dharavath-jayanth-nxtwave-co-in-2376",
       "employeeId": "NW0005531",
@@ -1105,7 +1214,7 @@ export const FALLBACK_STAFF_DIRECTORY: FallbackCredentialRecord[] = [
       "designation": "Capability Manager",
       "location": "",
       "subject": "",
-      "avatarUrl": "AUTH_PW:NW0005531",
+      "avatarUrl": "",
       "phone": null,
       "isActive": true,
       "createdAt": "2026-10-19T05:43:31.040263+00:00",

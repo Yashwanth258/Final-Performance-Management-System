@@ -315,18 +315,59 @@ export const AuthPage: React.FC = () => {
       const rawCode = err?.code || '';
       const errMsg = err?.message || '';
 
-      // Account not found error
-      if (
+      // 1. Request failed, timed out, was blocked, or threw an error -> show "Can't reach server. Please check your network and retry."
+      const isNetworkOrBlocked = 
+        rawCode === 'SERVER_UNREACHABLE' ||
+        errMsg.includes("Can't reach server") ||
+        errMsg.toLowerCase().includes('failed to fetch') ||
+        errMsg.toLowerCase().includes('network') ||
+        errMsg.toLowerCase().includes('timeout') ||
+        errMsg.toLowerCase().includes('authretryablefetcherror') ||
+        err?.name === 'AuthRetryableFetchError' ||
+        err?.status === 0;
+
+      if (isNetworkOrBlocked) {
+        setIsUserNotFound(false);
+        setIsWrongPassword(false);
+        setShowWrongPasswordModal(false);
+        setErrorMessage("Can't reach server. Please check your network and retry.");
+        return;
+      }
+
+      // 2. Request succeeded but returned no matching user -> show "Account not registered."
+      const isAccountNotRegistered =
+        rawCode === 'ACCOUNT_NOT_REGISTERED' ||
+        errMsg === 'Account not registered.' ||
         errMsg.startsWith('NO_ACCOUNT_FOUND:') ||
+        errMsg.toLowerCase().includes('account not registered') ||
         errMsg.toLowerCase().includes('no registered account') ||
         errMsg.toLowerCase().includes('no account found') ||
-        errMsg.toLowerCase().includes('no account matching')
-      ) {
-        const cleanMsg = errMsg.replace('NO_ACCOUNT_FOUND:', '').trim();
+        errMsg.toLowerCase().includes('no account matching');
+
+      if (isAccountNotRegistered) {
         setIsUserNotFound(true);
         setIsWrongPassword(false);
         setShowWrongPasswordModal(false);
-        setErrorMessage(cleanMsg || 'No registered account found with this email or Employee ID. Please check your credentials or register a new account.');
+        setErrorMessage('Account not registered.');
+        return;
+      }
+
+      // 3. User found but password is wrong -> show "Incorrect email or password."
+      const isWrongPass = 
+        rawCode === 'WRONG_PASSWORD' || 
+        errMsg === 'Incorrect email or password.' ||
+        errMsg.includes('WRONG_PASSWORD') || 
+        rawCode === 'auth/wrong-password' || 
+        rawCode === 'auth/invalid-credential' || 
+        rawCode === 'auth/invalid-login-credentials' ||
+        errMsg.toLowerCase().includes('incorrect email or password') ||
+        errMsg.toLowerCase().includes('wrong password');
+
+      if (isWrongPass) {
+        setIsWrongPassword(true);
+        setIsUserNotFound(false);
+        setShowWrongPasswordModal(true);
+        setErrorMessage('Incorrect email or password.');
         return;
       }
 
@@ -357,21 +398,6 @@ export const AuthPage: React.FC = () => {
         return;
       }
 
-      const isWrongPass = errMsg.includes('WRONG_PASSWORD') || 
-                          rawCode === 'auth/wrong-password' || 
-                          rawCode === 'auth/invalid-credential' || 
-                          rawCode === 'auth/invalid-login-credentials' ||
-                          errMsg.toLowerCase().includes('wrong password');
-
-      if (isWrongPass) {
-        console.info('[AuthPage] Caught WRONG_PASSWORD mismatch error from AuthContext');
-        setIsWrongPassword(true);
-        setIsUserNotFound(false);
-        setErrorMessage('You have entered a wrong password, type again');
-        setShowWrongPasswordModal(true);
-        return;
-      }
-
       if (rawCode === 'auth/too-many-requests') {
         setIsWrongPassword(false);
         setIsUserNotFound(false);
@@ -379,11 +405,10 @@ export const AuthPage: React.FC = () => {
         return;
       }
 
-      // Default network or connection issue
-      console.warn('[AuthPage] Sign in notice:', errMsg || err);
+      // Default network/server error
       setIsWrongPassword(false);
       setIsUserNotFound(false);
-      setErrorMessage(errMsg || 'Failed to authenticate. Please check your credentials and internet connection.');
+      setErrorMessage("Can't reach server. Please check your network and retry.");
     } finally {
       setIsSubmitting(false);
     }
@@ -1016,7 +1041,7 @@ export const AuthPage: React.FC = () => {
                       </span>
                     </div>
                     <p className="text-sm font-bold text-amber-950 mt-1">
-                      {errorMessage || 'No registered account found with this email or Employee ID.'}
+                      {errorMessage || 'Account not registered.'}
                     </p>
                     <p className="text-xs text-amber-800 mt-1">
                       Please double-check your spelling (e.g. your complete official email or NW ID), or create your account below.
@@ -1063,7 +1088,7 @@ export const AuthPage: React.FC = () => {
                       </span>
                     </div>
                     <p className="text-sm font-bold text-rose-900 mt-1">
-                      You have entered a wrong password, type again
+                      {errorMessage || 'Incorrect email or password.'}
                     </p>
                     <p className="text-xs text-rose-700 mt-1">
                       💡 Tip: You can also sign in using your official Employee ID (e.g. NW0004228) or default password &ldquo;Nxtwave@123&rdquo;, or click Reset Password.

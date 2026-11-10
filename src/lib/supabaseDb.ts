@@ -791,27 +791,74 @@ export const buildCandidateLookupKeys = (input: string): string[] => {
   return Array.from(keySet).filter(Boolean);
 };
 
+export interface LookupProfileResult {
+  profile: UserProfile;
+  storedPassword?: string;
+  storedPasswordHash?: string;
+  isOfflineFallback?: boolean;
+}
+
 export const lookupProfileByCredentials = async (
   keys: string[]
-): Promise<{ profile: UserProfile; storedPassword?: string } | null> => {
-  try {
-    const rawKeys = Array.from(new Set(keys.map(k => (k || '').trim()).filter(Boolean)));
-    if (rawKeys.length === 0) return null;
+): Promise<LookupProfileResult> => {
+  const rawKeys = Array.from(new Set(keys.map(k => (k || '').trim()).filter(Boolean)));
+  if (rawKeys.length === 0) {
+    const err = new Error('Account not registered.');
+    (err as any).code = 'ACCOUNT_NOT_REGISTERED';
+    throw err;
+  }
 
-    // Expand all raw keys through candidate key generator
-    const candidateSet = new Set<string>();
-    for (const k of rawKeys) {
-      for (const cand of buildCandidateLookupKeys(k)) {
-        candidateSet.add(cand);
+  // Expand all raw keys through candidate key generator
+  const candidateSet = new Set<string>();
+  for (const k of rawKeys) {
+    for (const cand of buildCandidateLookupKeys(k)) {
+      candidateSet.add(cand);
+    }
+  }
+  const cleanKeys = Array.from(candidateSet);
+  const primaryKey = rawKeys[0].trim();
+  const isEmail = primaryKey.includes('@');
+
+  let data: any[] | null = null;
+  let requestError: any = null;
+  let requestFailed = false;
+
+  // 1. LIVE SUPABASE REQUEST (Always attempted first)
+  try {
+    const primaryQuery = isEmail
+      ? supabase.from('profiles').select('*').ilike('company_email', primaryKey).limit(1)
+      : supabase.from('profiles').select('*').ilike('employee_id', primaryKey).limit(1);
+
+    const timeoutPromise = new Promise<{ data: null; error: any }>((_, reject) =>
+      setTimeout(() => reject(new Error("Can't reach server. Please check your network and retry.")), 4500)
+    );
+
+    const res = await Promise.race([primaryQuery, timeoutPromise]);
+    data = res.data;
+    requestError = res.error;
+
+    if (!requestError && (!data || data.length === 0)) {
+      const secondaryKey = isEmail ? primaryKey.split('@')[0] : primaryKey;
+      const secondaryQuery = isEmail
+        ? supabase.from('profiles').select('*').ilike('employee_id', secondaryKey).limit(1)
+        : supabase.from('profiles').select('*').ilike('company_email', `%${secondaryKey}%`).limit(1);
+
+      const secRes = await Promise.race([secondaryQuery, timeoutPromise]);
+      if (secRes.data && secRes.data.length > 0) {
+        data = secRes.data;
       }
     }
-    const cleanKeys = Array.from(candidateSet);
-    if (cleanKeys.length === 0) return null;
+  } catch (err: any) {
+    requestFailed = true;
+    requestError = err;
+  }
 
-    // 1. FAST LOCAL VERIFIED DIRECTORY LOOKUP (Guarantees zero-failure on office Wi-Fi / VPN / firewalls)
-    let directoryMatch: { profile: UserProfile; storedPassword?: string } | null = null;
+  // 2. CHECK ERROR OBJECT BEFORE CHECKING IF DATA IS EMPTY
+  if (requestFailed || requestError) {
+    console.warn('[Supabase] Live server request failed/blocked:', requestError);
+
+    // 4. Embedded offline staff list kept ONLY as a last fallback when the request failed
     const lowerCandidates = cleanKeys.map(k => k.toLowerCase().trim());
-
     for (const entry of FALLBACK_STAFF_DIRECTORY) {
       const empId = (entry.profile.employeeId || '').toLowerCase().trim();
       const email = (entry.profile.companyEmail || '').toLowerCase().trim();
@@ -827,92 +874,57 @@ export const lookupProfileByCredentials = async (
       );
 
       if (isMatch) {
-        // Check for any locally updated password
-        let localPass = entry.storedPassword;
-        try {
-          const cachedPass = localStorage.getItem(`custom_pw_${entry.profile.employeeId}`);
-          if (cachedPass) localPass = cachedPass;
-        } catch {
-          // ignore localStorage access issues in private mode
-        }
-        directoryMatch = { ...entry, storedPassword: localPass };
-        break;
-      }
-    }
-
-    // 2. LIVE SUPABASE ATTEMPT (Fast direct query without bloated URL query strings)
-    try {
-      const primaryKey = rawKeys[0].trim();
-      const isEmail = primaryKey.includes('@');
-
-      const primaryQuery = isEmail
-        ? supabase.from('profiles').select('*').ilike('company_email', primaryKey).limit(1)
-        : supabase.from('profiles').select('*').ilike('employee_id', primaryKey).limit(1);
-
-      const timeoutPromise = new Promise<{ data: null; error: any }>((_, reject) =>
-        setTimeout(() => reject(new Error('Live DB query timeout')), 3500)
-      );
-
-      let { data, error } = await Promise.race([primaryQuery, timeoutPromise]);
-
-      // If not found by primary direct query, try secondary direct queries
-      if ((!data || data.length === 0) && !error) {
-        const secondaryKey = isEmail ? primaryKey.split('@')[0] : primaryKey;
-        const secondaryQuery = isEmail
-          ? supabase.from('profiles').select('*').ilike('employee_id', secondaryKey).limit(1)
-          : supabase.from('profiles').select('*').ilike('company_email', `%${secondaryKey}%`).limit(1);
-
-        const secRes = await Promise.race([secondaryQuery, timeoutPromise]);
-        if (secRes.data && secRes.data.length > 0) {
-          data = secRes.data;
-        }
-      }
-
-      if (data && data.length > 0) {
-        const p = data[0];
-        let storedPassword: string | undefined = undefined;
-        if (p.avatar_url && typeof p.avatar_url === 'string' && p.avatar_url.startsWith('AUTH_PW:')) {
-          storedPassword = p.avatar_url.replace('AUTH_PW:', '');
-        }
-
-        const liveProfile: UserProfile = {
-          uid: p.uid || p.id,
-          employeeId: p.employee_id,
-          fullName: p.full_name,
-          companyEmail: p.company_email,
-          role: p.role,
-          department: p.department || 'GenAI',
-          teamId: p.team_id || 'team-genai',
-          teamName: p.team_name,
-          managerId: p.manager_id,
-          managerName: p.manager_name,
-          managerEmail: p.manager_email,
-          designation: p.designation,
-          location: p.location || '',
-          subject: p.subject || '',
-          avatarUrl: p.avatar_url,
-          phone: p.phone,
-          isActive: p.is_active ?? true,
-          createdAt: p.created_at,
-          updatedAt: p.updated_at,
+        return {
+          profile: entry.profile,
+          storedPasswordHash: entry.passwordHash,
+          isOfflineFallback: true,
         };
-
-        return { profile: liveProfile, storedPassword: storedPassword || directoryMatch?.storedPassword };
       }
-    } catch (netErr) {
-      console.warn('[Supabase] Live DB lookup bypassed due to network/firewall latency. Using directory cache:', netErr);
     }
 
-    // 3. RETURN DIRECTORY MATCH (Guarantees login success even if network or Supabase fails)
-    if (directoryMatch) {
-      return directoryMatch;
-    }
-
-    return null;
-  } catch (err) {
-    console.warn('[Supabase] lookupProfileByCredentials notice:', err);
-    return null;
+    // Request failed, was blocked or timed out, and no offline fallback exists
+    const serverErr = new Error("Can't reach server. Please check your network and retry.");
+    (serverErr as any).code = 'SERVER_UNREACHABLE';
+    throw serverErr;
   }
+
+  // 3. REQUEST SUCCEEDED BUT RETURNED NO MATCHING USER
+  if (!data || data.length === 0) {
+    const notFoundErr = new Error('Account not registered.');
+    (notFoundErr as any).code = 'ACCOUNT_NOT_REGISTERED';
+    throw notFoundErr;
+  }
+
+  // 4. USER FOUND ON SERVER
+  const p = data[0];
+  let storedPassword: string | undefined = undefined;
+  if (p.avatar_url && typeof p.avatar_url === 'string' && p.avatar_url.startsWith('AUTH_PW:')) {
+    storedPassword = p.avatar_url.replace('AUTH_PW:', '');
+  }
+
+  const liveProfile: UserProfile = {
+    uid: p.uid || p.id,
+    employeeId: p.employee_id,
+    fullName: p.full_name,
+    companyEmail: p.company_email,
+    role: p.role,
+    department: p.department || 'GenAI',
+    teamId: p.team_id || 'team-genai',
+    teamName: p.team_name,
+    managerId: p.manager_id,
+    managerName: p.manager_name,
+    managerEmail: p.manager_email,
+    designation: p.designation,
+    location: p.location || '',
+    subject: p.subject || '',
+    avatarUrl: p.avatar_url,
+    phone: p.phone,
+    isActive: p.is_active ?? true,
+    createdAt: p.created_at,
+    updatedAt: p.updated_at,
+  };
+
+  return { profile: liveProfile, storedPassword, isOfflineFallback: false };
 };
 
 export const updateProfilePassword = async (
